@@ -11,13 +11,15 @@ using Migration.Toolkit.Sitefinity.Abstractions;
 using Migration.Toolkit.Sitefinity.Configuration;
 using Migration.Toolkit.Sitefinity.Core.Helpers;
 using Migration.Toolkit.Sitefinity.Model;
+using Migration.Toolkit.Sitefinity.Services;
 
 namespace Migration.Toolkit.Sitefinity.Adapters;
 internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedModelAdapter> logger,
                                                  IContentHelper contentHelper,
                                                  IUserHelper userHelper,
                                                  SitefinityImportConfiguration configuration,
-                                                 SitefinityDataConfiguration dataConfiguration) : UmtAdapterBaseWithDependencies<ContentItem, ContentDependencies, ContentItemSimplifiedModel>(logger)
+                                                 SitefinityDataConfiguration dataConfiguration,
+                                                 ContentFolderManager contentFolderManager) : UmtAdapterBaseWithDependencies<ContentItem, ContentDependencies, ContentItemSimplifiedModel>(logger)
 {
     private readonly Dictionary<Guid, ContentItemSimplifiedModel> detailContentItems = [];
 
@@ -38,9 +40,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
         }
 
         var users = dependenciesModel.Users;
-
         users.TryGetValue(ValidationHelper.GetGuid(source.Owner, Guid.Empty), out var createdByUser);
-
         var languageData = contentHelper.GetLanguageData(dependenciesModel, source, dataClassModel, createdByUser);
 
         if (dataClassModel.ClassContentTypeType == null)
@@ -48,9 +48,9 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
             return AdaptReusable(source, dataClassModel, languageData, rootFolder);
         }
 
-        if (dataClassModel.ClassContentTypeType.Equals("Reusable"))
+        if (dataClassModel.ClassContentTypeType.Equals("Reusable") || dataClassModel.ClassName == "elfa.Program")
         {
-            return AdaptReusable(source, dataClassModel, languageData, rootFolder);
+            return AdaptReusable(source, dataClassModel, languageData, new ContentFolderInfo { ContentFolderGUID = dataClassModel.ClassGUID ?? rootFolder.ContentFolderGUID });
         }
 
         if (dataClassModel.ClassContentTypeType.Equals("Website"))
@@ -60,6 +60,8 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
 
         return AdaptReusable(source, dataClassModel, languageData, rootFolder);
     }
+
+    private readonly Dictionary<int, Guid> stateContentItemGuids = [];
 
     private ContentItemSimplifiedModel? AdaptPage(ContentItem source, DataClassModel dataClassModel, IEnumerable<ContentItemLanguageData> languageData, ContentDependencies dependenciesModel)
     {
@@ -71,7 +73,8 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
             return default;
         }
 
-        var pageConfigs = configuration.PageContentTypes?.Where(x => dataClassModel.ClassName != null && dataClassModel.ClassName.Contains(x.TypeName));
+        // Use exact match for TypeName instead of Contains
+        var pageConfigs = configuration.PageContentTypes?.Where(x => dataClassModel.ClassName != null && dataClassModel.ClassName.EndsWith("." + x.TypeName));
 
         if (pageConfigs == null || !pageConfigs.Any())
         {
@@ -82,7 +85,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
             if (detailContentItems.TryGetValue(parentGuid, out var detailContentItem))
             {
                 parentGuid = ValidationHelper.GetGuid(detailContentItem.ContentItemGUID, Guid.Empty);
-                treePath = detailContentItem.PageData?.TreePath + contentHelper.RemovePathSegmentsFromStart(source.ItemDefaultUrl, 2);
+                treePath = (detailContentItem.PageData?.TreePath ?? string.Empty) + contentHelper.RemovePathSegmentsFromStart(source.ItemDefaultUrl ?? string.Empty, 2);
                 pagePath = treePath;
             }
 
@@ -111,9 +114,50 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
 
         foreach (var pageConfig in pageConfigs)
         {
+            if (dataClassModel.ClassName == "elfa.State")
+            {
+                string[] segments = (source.ItemDefaultUrl ?? string.Empty).Split('/', StringSplitOptions.RemoveEmptyEntries);
+                string stateName = segments.Length > 0 ? segments[0] : string.Empty;
+                stateContentItemGuids[stateName.GetHashCode()] = source.Id;
+            }
+
+            if (dataClassModel.ClassName is "elfa.TaxManualItem" or "elfa.CompendiumIssue")
+            {
+                // Extract the state name as the first folder segment from ItemDefaultUrl
+                string[] segments = (source.ItemDefaultUrl ?? string.Empty).Split('/', StringSplitOptions.RemoveEmptyEntries);
+                string stateName = segments.Length > 0 ? segments[0] : string.Empty;
+                string taxItemsPath = $"{pageConfig.PageRootPath}/{stateName}";
+
+                stateContentItemGuids.TryGetValue(stateName.GetHashCode(), out var parentGuid);
+
+                var stateContentItemPageData = new PageDataModel
+                {
+                    ItemOrder = null,
+                    PageUrls = contentHelper.GetPageUrls(dependenciesModel, source, rootPath: taxItemsPath),
+                    PageGuid = source.Id,
+                    ParentGuid = parentGuid,
+                    TreePath = pageConfig.PageRootPath + (source.ItemDefaultUrl ?? string.Empty)
+                };
+
+                var stateContentItem = new ContentItemSimplifiedModel
+                {
+                    ContentItemGUID = source.Id,
+                    ContentTypeName = dataClassModel.ClassName,
+                    Name = contentHelper.GetName(source.Title, source.Id),
+                    LanguageData = languageData.ToList(),
+                    IsReusable = false,
+                    PageData = stateContentItemPageData,
+                    ChannelName = channel.ChannelName
+                };
+
+                return stateContentItem;
+            }
+
             if (pageConfig.PageTemplateType == PageTemplateType.Listing)
             {
-                var listingPage = dependenciesModel.WebPages?.Values.FirstOrDefault(x => x.PageData?.TreePath?.Equals(pageConfig.PageRootPath) ?? false);
+                var listingPage = dependenciesModel.WebPages?.Values
+                    .FirstOrDefault(x => x.PageData?.TreePath != null &&
+                        x.PageData.TreePath.Equals(pageConfig.PageRootPath, StringComparison.OrdinalIgnoreCase));
 
                 if (listingPage == null)
                 {
@@ -126,7 +170,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
                     PageUrls = contentHelper.GetPageUrls(dependenciesModel, source, pageConfig.PageRootPath),
                     PageGuid = source.Id,
                     ParentGuid = listingPage.ContentItemGUID,
-                    TreePath = pageConfig.PageRootPath + source.ItemDefaultUrl
+                    TreePath = pageConfig.PageRootPath + (source.ItemDefaultUrl ?? string.Empty)
                 };
 
                 var listingChildPageContentItem = new ContentItemSimplifiedModel
@@ -191,13 +235,13 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
         return pageContentItem;
     }
 
-    private ContentItemSimplifiedModel AdaptReusable(ContentItem source, DataClassModel dataClassModel, IEnumerable<ContentItemLanguageData> languageData, ContentFolderInfo rootFolder) => new()
+    private ContentItemSimplifiedModel AdaptReusable(ContentItem source, DataClassModel dataClassModel, IEnumerable<ContentItemLanguageData> languageData, ContentFolderInfo folder) => new()
     {
         ContentItemGUID = source.Id,
         ContentTypeName = dataClassModel.ClassName,
         Name = contentHelper.GetName(source.Title, source.Id),
         LanguageData = languageData.ToList(),
         IsReusable = true,
-        ContentItemContentFolderGUID = rootFolder.ContentFolderGUID,
+        ContentItemContentFolderGUID = folder.ContentFolderGUID,
     };
 }

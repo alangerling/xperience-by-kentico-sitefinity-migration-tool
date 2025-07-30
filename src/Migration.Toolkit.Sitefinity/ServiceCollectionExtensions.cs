@@ -13,6 +13,7 @@ using Migration.Toolkit.Sitefinity.Core.Helpers;
 using Migration.Toolkit.Sitefinity.Core.Services;
 using Migration.Toolkit.Sitefinity.Data;
 using Migration.Toolkit.Sitefinity.Factories;
+using Migration.Toolkit.Sitefinity.FieldTypes;
 using Migration.Toolkit.Sitefinity.Helpers;
 using Migration.Toolkit.Sitefinity.Model;
 using Migration.Toolkit.Sitefinity.Services;
@@ -75,7 +76,14 @@ public static class ServiceCollectionExtensions
         var fieldTypes = FieldTypeFactory.GetTypes();
         foreach (var fieldType in fieldTypes)
         {
-            services.AddTransient(fieldType);
+            if (fieldType is RelatedProgramsFieldType)
+            {
+                services.AddSingleton(fieldType);
+            }
+            else
+            {
+                services.AddTransient(fieldType);
+            }
         }
 
         return services;

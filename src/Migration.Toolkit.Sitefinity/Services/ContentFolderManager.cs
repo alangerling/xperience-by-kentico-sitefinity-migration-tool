@@ -46,6 +46,18 @@ internal class ContentFolderManager(ILogger<ContentFolderManager> logger)
     }
 
     /// <summary>
+    /// Gets or creates a folder for a specific reusable content type (e.g., /program, /event).
+    /// </summary>
+    /// <param name="folderName">The name of the folder (content type)</param>
+    /// <param name="dependencies">The content dependencies</param>
+    /// <returns>The GUID of the folder</returns>
+    public Guid GetOrCreateContentTypeFolder(string folderName, ContentDependencies dependencies)
+    {
+        var folderModel = GetRootFolderAndAddToDependencies(folderName, dependencies.ContentFolders);
+        return folderModel.ContentFolderGUID ?? Guid.Empty;
+    }
+
+    /// <summary>
     /// Gets all folders that have been created during the current session.
     /// </summary>
     /// <returns>Collection of created folders</returns>
@@ -77,6 +89,33 @@ internal class ContentFolderManager(ILogger<ContentFolderManager> logger)
             ContentFolderName = globallyUniqueCodeName, // Use globally unique code name within 50 char limit
             ContentFolderTreePath = rootFolderPath,
             ContentFolderParentFolderGUID = null // Root level folder
+        };
+
+        createdFoldersDictionary[folderKeyForLookup] = newRootFolder;
+        allAvailableFolders[newRootFolder.ContentFolderGUID ?? Guid.Empty] = newRootFolder;
+
+        return newRootFolder;
+    }
+
+    private ContentFolderModel GetRootFolderAndAddToDependencies(string rootFolderName, IDictionary<Guid, ContentFolderModel> allAvailableFolders)
+    {
+        string rootFolderPath = $"/{rootFolderName}";
+        string folderKeyForLookup = rootFolderPath.ToLowerInvariant();
+
+        if (createdFoldersDictionary.TryGetValue(folderKeyForLookup, out var existingFolderModel))
+        {
+            return existingFolderModel;
+        }
+
+        string globallyUniqueCodeName = GenerateUniqueCodeName(rootFolderPath, $"root_{rootFolderName}");
+
+        var newRootFolder = new ContentFolderModel
+        {
+            ContentFolderGUID = Guid.NewGuid(),
+            ContentFolderDisplayName = rootFolderName,
+            ContentFolderName = globallyUniqueCodeName,
+            ContentFolderTreePath = rootFolderPath,
+            ContentFolderParentFolderGUID = null
         };
 
         createdFoldersDictionary[folderKeyForLookup] = newRootFolder;
@@ -257,5 +296,34 @@ internal class ContentFolderManager(ILogger<ContentFolderManager> logger)
         string[] downloadFileExtensions = [".7z", ".csv", ".deb", ".dmg", ".doc", ".docx", ".exe", ".gz", ".msg", ".msi", ".odp", ".ods", ".odt", ".pdf", ".pps", ".ppsx", ".ppt", ".pptx", ".rar", ".rpm", ".rtf", ".tar", ".txt", ".wpd", ".xls", ".xlsx", ".xml", ".xps", ".zip"];
         bool isDownload = downloadFileExtensions.Contains(mediaItem.Extension?.ToLowerInvariant());
         return isDownload;
+    }
+    /// <summary>
+    /// Adds multiple folders to the createdFoldersDictionary.
+    /// </summary>
+    /// <param name="folders">Dictionary of folders to add</param>
+    public void AddFolders(IDictionary<Guid, ContentFolderModel> folders)
+    {
+        // SRP: This method only adds folders to the tracking dictionary.
+        // OCP: Extensible for other folder sources.
+        // DIP: No direct dependency on concrete implementations.
+        // CA1062: Validate argument is not null.
+        if (folders is null)
+        {
+            throw new ArgumentNullException(nameof(folders));
+        }
+
+        foreach (var folder in folders.Values)
+        {
+            if (folder is null || folder.ContentFolderTreePath is null)
+            {
+                continue; // CA1062: Skip nulls for reliability.
+            }
+
+            string folderKeyForLookup = folder.ContentFolderTreePath.ToLowerInvariant();
+            if (!createdFoldersDictionary.ContainsKey(folderKeyForLookup))
+            {
+                createdFoldersDictionary[folderKeyForLookup] = folder;
+            }
+        }
     }
 }

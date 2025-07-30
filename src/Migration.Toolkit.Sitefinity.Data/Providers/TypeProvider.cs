@@ -232,6 +232,47 @@ internal class TypeProvider(SitefinityDataConfiguration configuration, ILogger<T
                 continue;
             }
 
+
+            if (module.Name == "ELFAEvents")
+            {
+                foreach (var type in module.Types)
+                {
+                    if (type.Name == "ElfaEvent" && type.Fields != null)
+                    {
+                        type.Fields.Add(new Field
+                        {
+                            Id = Guid.Parse("9B96237A-A336-4668-A681-DD47D00581F0"),
+                            Name = "Programs",
+                            Title = "Programs",
+                            ColumnName = "Programs",
+                            WidgetTypeName = "Telerik.Sitefinity.Web.UI.Fields.RelatedProgramsField",
+                            IsRequired = false,
+                            RelatedDataType = "Telerik.Sitefinity.DynamicTypes.Model.ELFAEvents.Program",
+
+                        });
+                    }
+                }
+            }
+
+            if (module.Name is "State Compendium")
+            {
+                foreach (var type in module.Types)
+                {
+                    if ((type.Name == "CompendiumIssue" || type.Name == "TaxManualItem") && type.Fields != null)
+                    {
+                        type.Fields.Add(new Field
+                        {
+                            Id = Guid.Parse("7776237A-A336-4668-A681-DD47D00581F0"),
+                            Name = "State",
+                            Title = "State",
+                            ColumnName = "State",
+                            WidgetTypeName = "Telerik.Sitefinity.Web.UI.Fields.StateTaxonomyField",
+                            IsRequired = false
+                        });
+                    }
+                }
+            }
+
             dynamicTypes.AddRange(module.Types);
         }
 

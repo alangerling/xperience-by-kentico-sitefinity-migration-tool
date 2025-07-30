@@ -14,10 +14,18 @@ public interface IContentProvider
     public IEnumerable<Page> GetPages(IEnumerable<SystemCulture> cultures);
 
     /// <summary>
+    /// Gets Pages from Sitefinity.
+    /// </summary>
+    /// <param name="cultures">Cultures to query.</param>
+    /// <returns>Pages from Sitefinity.</returns>
+    public IEnumerable<Page> GetPages(IEnumerable<SystemCulture> cultures, IEnumerable<string>? requiredPaths);
+
+    /// <summary>
     /// Gets static and dynamic module Content Items from Sitefinity.
     /// </summary>
     /// <param name="typeDefinitions">All type definitions to query.</param>
     /// <param name="cultures">Cultures to query.</param>
     /// <returns>Static and dynamic module Content Items from Sitefinity.</returns>
     public IEnumerable<ContentItem> GetContentItems(IEnumerable<SitefinityTypeDefinition> typeDefinitions, IEnumerable<SystemCulture> cultures);
+    public IEnumerable<ContentItem> GetProgramsContentItems(IEnumerable<SitefinityTypeDefinition> typeDefinitions, IEnumerable<SystemCulture> cultures);
 }

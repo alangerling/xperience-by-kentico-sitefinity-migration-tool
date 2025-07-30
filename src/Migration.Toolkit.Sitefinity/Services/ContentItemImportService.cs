@@ -1,4 +1,6 @@
-﻿using Kentico.Xperience.UMT.Model;
+﻿using CMS.ContentEngine;
+
+using Kentico.Xperience.UMT.Model;
 using Kentico.Xperience.UMT.Services;
 
 using Microsoft.Extensions.Logging;
@@ -19,13 +21,16 @@ namespace Migration.Toolkit.Sitefinity.Services
                                             IDataClassImportService dataClassImportService,
                                             IMediaImportService mediaImportService,
                                             IUserImportService userImportService,
+                                            SitefinityImportConfiguration configuration,
+                                            ContentFolderManager folderManager,
                                             IWebPageImportService webPageImportService,
                                             IContentProvider contentProvider,
                                             ITypeProvider typeProvider,
                                             IContentHelper contentHelper,
                                             SitefinityImportConfiguration importConfiguration,
                                             ILogger<ContentItemImportService> logger,
-                                            IUmtAdapterWithDependencies<ContentItem, ContentDependencies, ContentItemSimplifiedModel> adapter) : IContentItemImportService
+                                            IUmtAdapterWithDependencies<ContentItem, ContentDependencies, ContentItemSimplifiedModel> adapter,
+                                            IContentFolderImportService contentFolderImportService) : IContentItemImportService
     {
         public IEnumerable<ContentItemSimplifiedModel> Get(ContentDependencies dependenciesModel)
         {
@@ -74,47 +79,83 @@ namespace Migration.Toolkit.Sitefinity.Services
         public SitefinityImportResult<ContentItemSimplifiedModel> StartImport(ImportStateObserver observer)
         {
             var languages = contentLanguageImportService.StartImport(observer);
-
             observer.ImportCompletedTask.Wait();
 
             var channelDependencies = new ChannelDependencies
             {
                 ContentLanguages = languages.ImportedModels
             };
-
             var channels = channelImportService.StartImportWithDependencies(observer, channelDependencies);
-
             observer.ImportCompletedTask.Wait();
 
             var users = userImportService.StartImport(observer);
-
             observer.ImportCompletedTask.Wait();
 
             var dataClassDependencies = new DataClassDependencies
             {
                 Channels = channels.ImportedModels.Values.OfType<ChannelModel>().ToDictionary(x => x.ChannelGUID)
             };
-
-            var dataClasses = dataClassImportService.StartImportWithDependencies(observer, dataClassDependencies);
-
+            var dataClassesResult = dataClassImportService.StartImportWithDependencies(observer, dataClassDependencies);
             observer.ImportCompletedTask.Wait();
-
 
             var mediaFiles = mediaImportService.StartImport(observer);
-
             observer.ImportCompletedTask.Wait();
+
+            // Fix: Get DataClasses dictionary from SitefinityImportResult<DataClassModel>
+            var dataClasses = dataClassesResult.ImportedModels;
+
+            var contentFoldersByClassName = new Dictionary<Guid, ContentFolderModel>();
+
+            var rootFolder = ContentFolderInfo.Provider.GetRootAsync(configuration.KenticoDefaultWorkspaceName).GetAwaiter().GetResult();
+
+            foreach (var dataClass in dataClasses.Values.OfType<DataClassModel>())
+            {
+                if (!string.IsNullOrWhiteSpace(dataClass.ClassName) && dataClass.ClassGUID != null && (dataClass.ClassContentTypeType == "Reusable" || dataClass.ClassName == "elfa.Programs"))
+                {
+                    string folderName = "";
+                    if (!string.IsNullOrWhiteSpace(dataClass.ClassName))
+                    {
+                        string[] split = dataClass.ClassName.Split('.', 2);
+                        folderName = split.Length > 1 && !string.IsNullOrWhiteSpace(split[1])
+                            ? split[1]
+                            : dataClass.ClassName;
+                    }
+                    else
+                    {
+                        folderName = dataClass.ClassName;
+                    }
+
+                    var contentFolder = new ContentFolderModel
+                    {
+                        ContentFolderGUID = dataClass.ClassGUID,
+                        ContentFolderName = folderName,
+                        ContentFolderDisplayName = folderName,
+                        ContentFolderTreePath = $"/{folderName}",
+                        ContentFolderParentFolderGUID = null
+
+                    };
+
+                    contentFoldersByClassName.Add(dataClass.ClassGUID ?? rootFolder.ContentFolderGUID, contentFolder);
+                }
+            }
 
             var dependencies = new ContentDependencies
             {
                 MediaFiles = mediaFiles.ImportedModels,
                 Users = users.ImportedModels,
-                DataClasses = dataClasses.ImportedModels.Values.OfType<DataClassModel>().ToDictionary(x => x.ClassGUID),
+                DataClasses = dataClasses.Values.OfType<DataClassModel>().ToDictionary(x => x.ClassGUID),
                 Channels = channels.ImportedModels.Values.OfType<ChannelModel>().ToDictionary(x => x.ChannelGUID),
-                ContentLanguages = languages.ImportedModels
+                ContentLanguages = languages.ImportedModels,
+                ContentFolders = contentFoldersByClassName
             };
 
-            var webpages = webPageImportService.StartImportWithDependencies(observer, dependencies);
+            // Import content folders before importing content items
+            var folderDependencies = new ContentFolderDependencies { ContentFolders = dependencies.ContentFolders };
+            folderManager.AddFolders(dependencies.ContentFolders);
+            contentFolderImportService.StartImportWithDependencies(observer, folderDependencies);
+            observer.ImportCompletedTask.Wait();
 
+            var webpages = webPageImportService.StartImportWithDependencies(observer, dependencies);
             observer.ImportCompletedTask.Wait();
 
             dependencies.WebPages = webpages.ImportedModels;

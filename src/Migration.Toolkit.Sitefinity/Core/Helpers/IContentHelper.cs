@@ -7,7 +7,7 @@ namespace Migration.Toolkit.Sitefinity.Core.Helpers;
 /// <summary>
 /// Helper class for all content related operations.
 /// </summary>
-internal interface IContentHelper
+public interface IContentHelper
 {
     /// <summary>
     /// Gets the language data for the given culture.

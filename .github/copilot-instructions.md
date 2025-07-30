@@ -61,6 +61,7 @@ Integrate with existing dependencies and avoid introducing breaking changes.
 Assume most projects are hosted and deployed on Azure; prioritize Azure services and integrations where applicable.
 Additional Best Practices for Efficiency, Accuracy, and Maintainability
 To make coding easier, more efficient, and accurate, incorporate these guidelines:
+use explicit type instead of var
 
 Unit Testing: Always suggest accompanying unit tests using frameworks like xUnit or NUnit. Aim for high code coverage and test edge cases.
 Documentation: Add XML comments for public members and inline comments for complex logic. Follow .NET documentation standards.

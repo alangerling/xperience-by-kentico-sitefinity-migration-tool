@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 
 using Migration.Toolkit.Data.Core.Providers;
 using Migration.Toolkit.Data.Models;
+using Migration.Toolkit.Sitefinity.Configuration;
 using Migration.Toolkit.Sitefinity.Core.Adapters;
 using Migration.Toolkit.Sitefinity.Core.Helpers;
 using Migration.Toolkit.Sitefinity.Core.Services;
@@ -12,17 +13,19 @@ using Migration.Toolkit.Sitefinity.Model;
 
 namespace Migration.Toolkit.Sitefinity.Services
 {
-    internal class WebPageImportService(IImportService kenticoImportService,
-                                            IContentLanguageImportService contentLanguageImportService,
-                                            IChannelImportService channelImportService,
-                                            IDataClassImportService dataClassImportService,
-                                            IMediaImportService mediaImportService,
-                                            IUserImportService userImportService,
-                                            IContentProvider contentProvider,
-                                            ISiteProvider siteProvider,
-                                            IContentHelper contentHelper,
-                                            ILogger<WebPageImportService> logger,
-                                            IUmtAdapterWithDependencies<Page, ContentDependencies, ContentItemSimplifiedModel> adapter) : IWebPageImportService
+    internal class WebPageImportService(
+        IImportService kenticoImportService,
+        IContentLanguageImportService contentLanguageImportService,
+        IChannelImportService channelImportService,
+        IDataClassImportService dataClassImportService,
+        IMediaImportService mediaImportService,
+        IUserImportService userImportService,
+        IContentProvider contentProvider,
+        ISiteProvider siteProvider,
+        IContentHelper contentHelper,
+        ILogger<WebPageImportService> logger,
+        IUmtAdapterWithDependencies<Page, ContentDependencies, ContentItemSimplifiedModel> adapter,
+        SitefinityImportConfiguration importConfiguration) : IWebPageImportService
     {
         public IEnumerable<ContentItemSimplifiedModel> Get(ContentDependencies dependenciesModel)
         {
@@ -35,7 +38,12 @@ namespace Migration.Toolkit.Sitefinity.Services
 
             var currentSite = siteProvider.GetSites().First(x => x.Id.Equals(channel.ChannelGUID));
 
-            var pages = contentProvider.GetPages(currentSite.SystemCultures);
+            // Get required page paths from config
+            var requiredPaths = importConfiguration.PageContentTypes?.Select(x => x.PageRootPath).Distinct().ToList() ?? [];
+
+            var pages = requiredPaths.Any()
+                ? contentProvider.GetPages(currentSite.SystemCultures, requiredPaths)
+                : contentProvider.GetPages(currentSite.SystemCultures);
 
             return adapter.Adapt(pages, dependenciesModel);
         }

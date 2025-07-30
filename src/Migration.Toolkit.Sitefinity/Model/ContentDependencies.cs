@@ -3,7 +3,7 @@
 using Migration.Toolkit.Sitefinity.Core.Models;
 
 namespace Migration.Toolkit.Sitefinity.Model;
-internal class ContentDependencies : IImportDependencies, IMediaDependencies
+public class ContentDependencies : IImportDependencies, IMediaDependencies
 {
     /// <summary>
     /// Required media files for content.
@@ -29,4 +29,8 @@ internal class ContentDependencies : IImportDependencies, IMediaDependencies
     /// Imported web pages
     /// </summary>
     public IDictionary<Guid, ContentItemSimplifiedModel>? WebPages { get; set; }
+    /// <summary>
+    /// Required content folders for content.
+    /// </summary>
+    public IDictionary<Guid, ContentFolderModel> ContentFolders { get; set; } = new Dictionary<Guid, ContentFolderModel>();
 }

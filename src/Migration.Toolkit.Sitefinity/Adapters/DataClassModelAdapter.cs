@@ -18,7 +18,12 @@ internal class DataClassModelAdapter(ILogger<DataClassModelAdapter> logger, Site
     {
         var websiteTypes = typeHelper.GetWebsiteTypes();
 
-        bool isPageType = websiteTypes.Any(x => x.Id.Equals(source.Id)) || Array.Exists(Constants.ForcedWebsiteTypes, x => x.Equals(source.Name));
+        // Explicitly set Program to Reusable, not Website
+        bool isProgramType = source.Name == "Program";
+        bool isPageType = (!isProgramType && (websiteTypes.Any(x => x.Id.Equals(source.Id)) || Array.Exists(Constants.ForcedWebsiteTypes, x => x.Equals(source.Name))));
+
+        var fields = MapFields(source.Fields);
+
         var dataClassModel = new DataClassModel
         {
             ClassDisplayName = source.DisplayName,
@@ -27,10 +32,8 @@ internal class DataClassModelAdapter(ILogger<DataClassModelAdapter> logger, Site
             ClassShortName = $"{configuration.SitefinityCodeNamePrefix}.{source.Name}",
             ClassTableName = $"{configuration.SitefinityCodeNamePrefix}_{source.Name}",
             ClassType = "Content",
-            Fields = MapFields(source.Fields),
-            ClassContentTypeType = isPageType
-            ? "Website"
-            : "Reusable",
+            Fields = fields,
+            ClassContentTypeType = isPageType ? "Website" : "Reusable",
             ClassLastModified = source.LastModified ?? DateTime.Now,
             ClassHasUnmanagedDbSchema = false,
             ClassResourceGuid = null,
