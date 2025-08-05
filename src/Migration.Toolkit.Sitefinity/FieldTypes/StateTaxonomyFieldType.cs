@@ -90,7 +90,6 @@ public class StateTaxonomyFieldType(ITypeProvider typeProvider, ILogger<StateTax
             ControlName = "Kentico.Administration.TagSelector",
             CustomProperties = new Dictionary<string, object?>
             {
-                { "MaxSelectedTagsCount", "1" },
                 { "MinSelectedTagsCount", "0" },
                 { "TaxonomyGroup", JsonSerializer.Serialize(new[] { "953156C1-D73E-49C3-B7DF-1A943BC90B84" }) }
             }

@@ -12,7 +12,7 @@ public class HtmlFieldType : FieldTypeBase, IFieldType
 {
     public string SitefinityWidgetTypeName => "Telerik.Sitefinity.Web.UI.Fields.HtmlField";
 
-    public override string GetColumnType(Field sitefinityField) => "longtext";
+    public override string GetColumnType(Field sitefinityField) => "richtexthtml";
 
     public override FormFieldSettings GetSettings(Field sitefinityField) => new()
     {

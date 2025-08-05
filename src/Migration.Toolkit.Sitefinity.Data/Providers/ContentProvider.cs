@@ -14,10 +14,9 @@ internal class ContentProvider(IRestClient restClient, ILogger<ContentProvider> 
     // Replace the tuple declaration with a single-element record or struct, or use a string array if only one value is needed.
     // Here, a string array is sufficient since only the Name is used.
     // Leave empty to not filter by type
-    private static readonly string[] allowedTypes = new[]
-    {
-        "ElfaEvent",
-        "Program",
+    private static readonly string[] allowedTypes = {
+        //"ElfaEvent",
+        //"Program",
         "TaxManualItem",
         "State",
         "CompendiumIssue",
@@ -33,7 +32,7 @@ internal class ContentProvider(IRestClient restClient, ILogger<ContentProvider> 
         var filteredTypeDefinitions = typeDefinitions
             .Where(td => allowedTypes.Contains(td.SitefinityTypeName))
             .ToList();
-        if (!filteredTypeDefinitions.Any())
+        if (true || !filteredTypeDefinitions.Any())
         {
             filteredTypeDefinitions = (List<SitefinityTypeDefinition>)typeDefinitions;
         }
@@ -137,7 +136,6 @@ internal class ContentProvider(IRestClient restClient, ILogger<ContentProvider> 
                 item.DataClassGuid = typeDefinition.DataClassGuid;
                 item.TypeName = typeDefinition.SitefinityTypeName;
                 item.Culture = defaultCulture.Culture;
-
                 if (versions != null)
                 {
                     var version = versions.FirstOrDefault(x => x.ItemId == item.Id);
