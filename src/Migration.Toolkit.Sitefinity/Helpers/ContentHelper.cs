@@ -122,7 +122,14 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
             {
                 if (cultureSdkItem is SdkItem sdkItem)
                 {
-                    object data = fieldType.GetData(sdkItem, field.Name);
+                    object? data = fieldType.GetData(sdkItem, field.Name);
+
+                    // If data is null or empty string, add directly and skip further processing
+                    if (data == null || (data is string str && string.IsNullOrEmpty(str)))
+                    {
+                        contentItemData.Add(field.Name, data);
+                        continue;
+                    }
 
                     if (fieldType is HtmlFieldType)
                     {

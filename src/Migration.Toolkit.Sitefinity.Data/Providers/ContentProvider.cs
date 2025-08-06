@@ -17,10 +17,14 @@ internal class ContentProvider(IRestClient restClient, ILogger<ContentProvider> 
     private static readonly string[] allowedTypes = {
         //"ElfaEvent",
         //"Program",
-        "TaxManualItem",
-        "State",
-        "CompendiumIssue",
-        "CompendiumAuthor",
+        //"MagazineIssue",
+        //"MagazineAuthor",
+        //"MagazineArticle",
+        //"MagazineSponsor",
+        //"TaxManualItem",
+        //"State",
+        //"CompendiumIssue",
+        //"CompendiumAuthor",
     };
 
     private IEnumerable<SitefinityVersionChange>? versions;

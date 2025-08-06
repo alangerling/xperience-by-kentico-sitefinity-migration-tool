@@ -87,7 +87,7 @@ public class RelatedMediaFieldType(ITypeProvider typeProvider, ILogger<RelatedMe
         if (relatedData == null || !relatedData.Any())
         {
             logger.LogDebug("No related media data found for field {FieldName} in content item {ContentItemId}", fieldName, sdkItem.Id);
-            return JsonSerializer.Serialize(new List<ContentRelatedItem>());
+            return string.Empty;
         }
 
         var contentRelatedItems = new List<ContentRelatedItem>();
@@ -101,6 +101,10 @@ public class RelatedMediaFieldType(ITypeProvider typeProvider, ILogger<RelatedMe
                     Identifier = mediaItemGuid
                 });
             }
+        }
+        if (contentRelatedItems.Count == 0)
+        {
+            return string.Empty;
         }
 
         return JsonSerializer.Serialize(contentRelatedItems);

@@ -72,7 +72,7 @@ public class RelatedDataFieldType(ITypeProvider typeProvider, ILogger<RelatedDat
 
         if (relatedData == null)
         {
-            return JsonSerializer.Serialize(new List<ContentRelatedItem>());
+            return string.Empty;
         }
 
         var contentRelatedItems = new List<ContentRelatedItem>();
@@ -86,6 +86,11 @@ public class RelatedDataFieldType(ITypeProvider typeProvider, ILogger<RelatedDat
                     Identifier = result
                 });
             }
+        }
+
+        if (contentRelatedItems.Count == 0)
+        {
+            return string.Empty;
         }
 
         return JsonSerializer.Serialize(contentRelatedItems);
