@@ -32,7 +32,7 @@ internal class TypeProvider(SitefinityDataConfiguration configuration, ILogger<T
         var imageFields = CreateImageFields();
         var imageType = new StaticSitefinityType
         {
-            Id = Guid.Parse("4C86237A-A336-4668-A681-DD47D00581F0"),
+            Id = Guid.Parse("EBEA5B71-0896-4C6D-A390-51605AB3FA94"),
             DisplayName = "Image",
             ClassName = "Image",
             Namespace = "Migration.Toolkit.Media",
@@ -45,9 +45,9 @@ internal class TypeProvider(SitefinityDataConfiguration configuration, ILogger<T
         var downloadFields = CreateDownloadFields();
         var downloadType = new StaticSitefinityType
         {
-            Id = Guid.Parse("CC922711-DC5E-412A-947C-3457D495E528"),
-            DisplayName = "Download",
-            ClassName = "Download",
+            Id = Guid.Parse("9315C03B-D20B-4843-A226-4CD975F8393D"),
+            DisplayName = "Download File",
+            ClassName = "DownloadFile",
             Namespace = "Migration.Toolkit.Media",
             Fields = downloadFields,
             LastModified = DateTime.Now
@@ -74,28 +74,10 @@ internal class TypeProvider(SitefinityDataConfiguration configuration, ILogger<T
     [
         new()
         {
-            Id = Guid.Parse("E0855E48-8962-40A3-ADEA-00CD84850C85"),
-            Name = "ImageTitle",
-            Title = "Title",
-            ColumnName = "ImageTitle",
-            WidgetTypeName = "Kentico.Administration.TextInput",
-            IsRequired = false
-        },
-        new()
-        {
-            Id = Guid.Parse("F0FAC065-E9CE-403E-A4A3-3915F8E0F7E6"),
-            Name = "ImageDescription",
-            Title = "Description",
-            ColumnName = "ImageDescription",
-            WidgetTypeName = "Kentico.Administration.TextInput",
-            IsRequired = false
-        },
-        new()
-        {
-            Id = Guid.Parse("30F44E4C-BCDC-46D4-B5FA-00455F7456AC"),
-            Name = "ImageAsset",
-            Title = "Asset",
-            ColumnName = "ImageAsset",
+            Id = Guid.Parse("e477a59e-1df6-4e2f-9986-20ab37342540"),
+            Name = "SelectedImage",
+            Title = "Selected Image",
+            ColumnName = "SelectedImage",
             WidgetTypeName = "Kentico.Administration.ContentItemAssetUploader",
             IsRequired = false
         },
@@ -105,7 +87,7 @@ internal class TypeProvider(SitefinityDataConfiguration configuration, ILogger<T
             Name = "ImageAssetLegacyUrl",
             Title = "Asset Legacy Url",
             ColumnName = "ImageAssetLegacyUrl",
-            WidgetTypeName = "Kentico.Administration.TextInput",
+            WidgetTypeName = "Kentico.Administration.Label",
             IsRequired = false
         }
     ];
@@ -114,38 +96,20 @@ internal class TypeProvider(SitefinityDataConfiguration configuration, ILogger<T
     [
         new()
         {
-            Id = Guid.Parse("BE4847B8-4E0C-4341-9CC2-E4CF86DF8681"),
-            Name = "DownloadTitle",
-            Title = "Title",
-            ColumnName = "DownloadTitle",
-            WidgetTypeName = "Kentico.Administration.TextInput",
-            IsRequired = false
-        },
-        new()
-        {
-            Id = Guid.Parse("0D4C579E-87C2-4631-A6AE-FA3792C36C52"),
-            Name = "DownloadDescription",
-            Title = "Description",
-            ColumnName = "DownloadDescription",
-            WidgetTypeName = "Kentico.Administration.TextInput",
-            IsRequired = false
-        },
-        new()
-        {
-            Id = Guid.Parse("296C7E42-8B3C-42FB-8278-9AE57D7759D5"),
-            Name = "DownloadAsset",
-            Title = "Asset",
-            ColumnName = "DownloadAsset",
+            Id = Guid.Parse("141d77fc-2e06-49eb-b14c-2ff58f5ce730"),
+            Name = "SelectedFile",
+            Title = "Selected File",
+            ColumnName = "SelectedFile",
             WidgetTypeName = "Kentico.Administration.ContentItemAssetUploader",
             IsRequired = false
         },
         new()
         {
             Id = Guid.Parse("30B652D1-D071-4FED-955E-BC7A5E0C260A"),
-            Name = "DownloadAssetUrl",
+            Name = "DownloadAssetLegacyUrl",
             Title = "Asset Legacy Url",
             ColumnName = "DownloadAssetLegacyUrl",
-            WidgetTypeName = "Kentico.Administration.TextInput",
+            WidgetTypeName = "Kentico.Administration.Label",
             IsRequired = false
         }
     ];
@@ -154,38 +118,20 @@ internal class TypeProvider(SitefinityDataConfiguration configuration, ILogger<T
     [
         new()
         {
-            Id = Guid.Parse("5155224C-CB91-44D7-AD92-5C60C04C144C"),
-            Name = "VideoTitle",
-            Title = "Title",
-            ColumnName = "VideoTitle",
-            WidgetTypeName = "Kentico.Administration.TextInput",
-            IsRequired = false
-        },
-        new()
-        {
-            Id = Guid.Parse("5BC6605F-ACC1-4DC4-89DF-5AE9FEC52435"),
-            Name = "VideoDescription",
-            Title = "Description",
-            ColumnName = "VideoDescription",
-            WidgetTypeName = "Kentico.Administration.TextInput",
-            IsRequired = false
-        },
-        new()
-        {
-            Id = Guid.Parse("FE21A4FA-9C3E-440C-A39D-9F7471B21F56"),
-            Name = "VideoAsset",
-            Title = "Asset",
-            ColumnName = "VideoAsset",
+            Id = Guid.Parse("141d77fc-2e06-49eb-b14c-2ff58f5ce730"),
+            Name = "SelectedFile",
+            Title = "Selected File",
+            ColumnName = "SelectedFile",
             WidgetTypeName = "Kentico.Administration.ContentItemAssetUploader",
             IsRequired = false
         },
         new()
         {
-            Id = Guid.Parse("BF390CBC-437B-4988-AD28-F83EFE25A125"),
-            Name = "VideoAssetUrl",
+            Id = Guid.Parse("30B652D1-D071-4FED-955E-BC7A5E0C260A"),
+            Name = "DownloadAssetLegacyUrl",
             Title = "Asset Legacy Url",
-            ColumnName = "VideoAssetLegacyUrl",
-            WidgetTypeName = "Kentico.Administration.TextInput",
+            ColumnName = "DownloadAssetLegacyUrl",
+            WidgetTypeName = "Kentico.Administration.Label",
             IsRequired = false
         }
     ];

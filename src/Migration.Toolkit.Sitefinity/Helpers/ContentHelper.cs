@@ -1,5 +1,4 @@
 ﻿using System.Text.Json;
-using Newtonsoft.Json.Linq;
 
 using CMS.ContentEngine;
 using CMS.ContentEngine.Internal;
@@ -19,9 +18,34 @@ using Migration.Toolkit.Sitefinity.Core.Helpers;
 using Migration.Toolkit.Sitefinity.FieldTypes;
 using Migration.Toolkit.Sitefinity.Model;
 
+using Newtonsoft.Json.Linq;
+
 using Progress.Sitefinity.RestSdk.Dto;
 
 namespace Migration.Toolkit.Sitefinity.Helpers;
+
+/// <summary>
+/// Defines mapping from Sitefinity content type to custom Kentico content type
+/// </summary>
+public class ContentTypeMapping
+{
+    /// <summary>
+    /// Original Sitefinity type name (e.g., "MagazineArticle")
+    /// </summary>
+    public required string SitefinityTypeName { get; set; }
+
+    /// <summary>
+    /// Target Kentico class name (e.g., "custom.MagazineArticle")
+    /// </summary>
+    public required string KenticoClassName { get; set; }
+
+    /// <summary>
+    /// Field mappings from Sitefinity field names to Kentico field names
+    /// Key: Sitefinity field name, Value: Kentico field name
+    /// </summary>
+    public Dictionary<string, string> FieldMappings { get; set; } = [];
+}
+
 internal class ContentHelper(ILogger<ContentHelper> logger,
                                 ITypeProvider typeProvider,
                                 IFieldTypeFactory fieldTypeFactory,
@@ -29,6 +53,217 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                                 SitefinityDataConfiguration dataConfiguration) : IContentHelper
 {
     private IEnumerable<Site>? sites;
+
+    /// <summary>
+    /// Content type mappings for custom Kentico content types
+    /// TODO: This should be moved to configuration or injected as a service
+    /// </summary>
+    private static readonly Dictionary<string, ContentTypeMapping> contentTypeMappings = new()
+    {
+        {
+            "elfaold.Image",
+            new ContentTypeMapping
+            {
+                SitefinityTypeName = "Image",
+                KenticoClassName = "ContentBase.Image",
+                FieldMappings = new Dictionary<string, string>
+                {
+                    { "SelectedImage", "ImageAsset" },
+                    //{ "UrlSlug", "UrlName" },
+                }
+            }
+        },
+        {
+            "elfaold.Download",
+            new ContentTypeMapping
+            {
+                SitefinityTypeName = "Download",
+                KenticoClassName = "ContentBase.DownloadFile",
+                FieldMappings = new Dictionary<string, string>
+                {
+                    { "SelectedFile", "DownloadAsset" },
+                    //{ "UrlSlug", "UrlName" },
+                }
+            }
+        },
+        {
+            "elfaold.Video",
+            new ContentTypeMapping
+            {
+                SitefinityTypeName = "Video",
+                KenticoClassName = "ContentBase.Video",
+                FieldMappings = new Dictionary<string, string>
+                {
+                    { "SelectedVideo", "VideoAsset" },
+                    //{ "UrlSlug", "UrlName" },
+                }
+            }
+        },
+        {
+            "elfaold.PageNode",
+            new ContentTypeMapping
+            {
+                SitefinityTypeName = "PageNode",
+                KenticoClassName = "ContentBase.ContentPage",
+                FieldMappings = new Dictionary<string, string>
+                {
+                    { "PageTitle", "Title" },
+                    //{ "UrlSlug", "UrlName" },
+                }
+            }
+        },
+        {
+            "elfaold.State",
+            new ContentTypeMapping
+            {
+                SitefinityTypeName = "State",
+                KenticoClassName = "Elfa.State",
+                FieldMappings = new Dictionary<string, string>
+                {
+                    { "PageTitle", "Title" },
+                    //{ "UrlSlug", "UrlName" },
+                }
+            }
+        },
+        {
+            "elfaold.TaxManualItem",
+            new ContentTypeMapping
+            {
+                SitefinityTypeName = "TaxManualItem",
+                KenticoClassName = "Elfa.TaxManualItem",
+                FieldMappings = new Dictionary<string, string>
+                {
+                    { "PageTitle", "Title" },
+                    { "PageCopyHtml1", "FullText" },
+                    { "TaxManualCategory", "taxmanualcategories" },
+                    { "PublicationDate", "ReleaseDate" },
+                    { "RelatedFilesDownloads", "Documents" },
+                    { "PageImage", "Image" },
+                    //{ "UrlSlug", "UrlName" },
+                    { "StateTaxonomy", "" }
+                }
+            }
+        },
+        {
+            "elfaold.CompendiumIssue",
+            new ContentTypeMapping
+            {
+                SitefinityTypeName = "CompendiumIssue",
+                KenticoClassName = "Elfa.CompendiumIssue",
+                FieldMappings = new Dictionary<string, string>
+                {
+                    { "PageTitle", "Title" },
+                    { "PageCopyHtml1", "Description" },
+                    { "PageCopyHtml2", "Comments" },
+                    { "Question", "Question" },
+                    { "RelatedState", "" },
+                    { "PublicationAuthor", "LastReviewAuthor" },
+                    { "PublicationDate", "LastReviewDate" },
+                    //{ "UrlSlug", "UrlName" },
+                    { "PublicationAuthorPages", "Authors" }
+                }
+            }
+        },
+        {
+            "elfaold.CompendiumAuthor",
+            new ContentTypeMapping
+            {
+                SitefinityTypeName = "CompendiumAuthor",
+                KenticoClassName = "Elfa.CompendiumAuthor",
+                FieldMappings = new Dictionary<string, string>
+                {
+                    { "PageTitle", "Title" },
+                    { "ContactPhoneOffice", "Phone" },
+                    { "ContactEmail", "Email" },
+                    { "PersonOrganization", "LawFirmName" },
+                    { "PersonWebsiteUrl", "LawFirmWebsite" },
+                    //{ "UrlSlug", "UrlName" },
+                }
+            }
+        },
+        {
+            "elfaold.MagazineIssue",
+            new ContentTypeMapping
+            {
+                SitefinityTypeName = "MagazineIssue",
+                KenticoClassName = "Elfa.MagazineIssue",
+                FieldMappings = new Dictionary<string, string>
+                {
+                    { "PageTitle", "Title" },
+                    { "MagazineIssueMonth", "IssueMonth" },
+                    { "MagazineIssueYear", "IssueYear" },
+                    { "PageImage", "CoverImage" },
+                    { "MagazineIssueSponsors", "Sponsors" },
+                    { "PublicationDate", "PublicationDate" },
+                    //{ "UrlSlug", "UrlName" }
+                }
+            }
+        },
+        {
+            "elfaold.MagazineSponsor",
+            new ContentTypeMapping
+            {
+                SitefinityTypeName = "MagazineSponsor",
+                KenticoClassName = "Elfa.Organization",
+                FieldMappings = new Dictionary<string, string>
+                {
+                    { "OrganizationName", "Title" },
+                    { "OrganizationUrl", "URL" },
+                }
+            }
+        },
+        {
+            "elfaold.MagazineAuthor",
+            new ContentTypeMapping
+            {
+                SitefinityTypeName = "MagazineAuthor",
+                KenticoClassName = "ContentBase.PersonDetail",
+                FieldMappings = new Dictionary<string, string>
+                {
+                    { "PageTitle", "Title" },
+                    { "ListingItemThumbnail", "Photo" },
+                }
+            }
+        },
+        {
+            "elfaold.MagazineArticle",
+            new ContentTypeMapping
+            {
+                SitefinityTypeName = "MagazineArticle",
+                KenticoClassName = "ContentBase.ArticleDetail",
+                FieldMappings = new Dictionary<string, string>
+                {
+                    { "PageTitle", "Title" },
+                    { "PageDescription", "Summary" },
+                    { "PageCopyHtml1", "Photo" },
+                    { "ListingItemThumbnail", "Photo" },
+                    { "ArticleAuthor", "AuthorByline" },
+                    { "AuthorPages", "ArticleAuthor" },
+                    { "PageImage", "HeroImage" },
+                    //{ "URLSlug", "UrlName" },
+                }
+            }
+        }
+    };
+
+    /// <summary>
+    /// Gets the mapped Kentico class name for a given Sitefinity type name, or returns the original if no mapping exists
+    /// </summary>
+    /// <param name="sitefinityTypeName">The Sitefinity type name</param>
+    /// <param name="originalClassName">The original class name from DataClassModel</param>
+    /// <returns>The mapped Kentico class name or the original if no mapping exists</returns>
+    public string GetMappedClassName(string? sitefinityTypeName, string? originalClassName)
+    {
+        if (string.IsNullOrEmpty(sitefinityTypeName) || !contentTypeMappings.TryGetValue(sitefinityTypeName, out var mapping))
+        {
+            return originalClassName ?? string.Empty;
+        }
+
+        logger.LogInformation("Mapping Sitefinity type '{SitefinityType}' to Kentico class '{KenticoClass}'",
+            sitefinityTypeName, mapping.KenticoClassName);
+
+        return mapping.KenticoClassName;
+    }
 
     public IEnumerable<ContentItemLanguageData> GetLanguageData(ContentDependencies contentDependencies, ICultureSdkItem cultureSdkItem, DataClassModel dataClassModel, UserInfoModel? createdByUser)
     {
@@ -103,6 +338,7 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
         }
 
         var contentItemData = new Dictionary<string, object?>();
+        var newContentItemData = new Dictionary<string, object?>();
 
         foreach (var field in type.Fields)
         {
@@ -174,12 +410,43 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
             }
         }
 
+        newContentItemData = contentItemData;
+
+        // Apply content type mappings if they exist
+        string? sitefinityTypeName = dataClassModel.ClassName;
+        if (!string.IsNullOrEmpty(sitefinityTypeName) && contentTypeMappings.TryGetValue(sitefinityTypeName, out var mapping))
+        {
+            newContentItemData = []; // Reset for mapped content types
+
+            // Apply field mappings
+            foreach (var fieldMapping in mapping.FieldMappings)
+            {
+                string sitefinityFieldName = fieldMapping.Value;
+                string kenticoFieldName = fieldMapping.Key;
+
+                // Skip empty Kentico field names (used for fields that should be excluded)
+                if (string.IsNullOrEmpty(kenticoFieldName))
+                {
+                    continue;
+                }
+
+                // Map the field if it exists in the original data
+                if (contentItemData.TryGetValue(sitefinityFieldName, out object? fieldValue))
+                {
+                    newContentItemData[kenticoFieldName] = fieldValue;
+                }
+            }
+
+            logger.LogDebug("Applied field mappings for content type '{ContentType}'. Mapped {MappedFields} fields.",
+                sitefinityTypeName, newContentItemData.Count);
+        }
+
         return new ContentItemLanguageData
         {
             DisplayName = cultureSdkItem.Title.Length > 100 ? cultureSdkItem.Title[..100] : cultureSdkItem.Title,
             LanguageName = languageName,
             UserGuid = user?.UserGUID,
-            ContentItemData = contentItemData,
+            ContentItemData = newContentItemData,
             VersionStatus = VersionStatus.Published,
         };
     }
@@ -463,31 +730,28 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
     /// <returns>The field definition GUID from TypeProvider, or null if not found.</returns>
     private string? GetAssetFieldGuidFromTypeProvider(Dictionary<string, object?> contentItemData)
     {
-        // Get media content types from TypeProvider
-        var mediaContentTypes = typeProvider.GetMediaContentTypes();
+        // Define the asset field names and their corresponding hardcoded GUIDs
+        string selectedImageFieldGuid = "e477a59e-1df6-4e2f-9986-20ab37342540";
+        string selectedVideoFieldGuid = "aaaaaaaa-1df6-4e2f-9986-20ab37342540";
+        string selectedFileFieldGuid = "d83a1aaf-18c3-4508-be2c-6950cbee5b16";
 
-        // Define the asset field names to look for
-        string[] assetFieldNames = ["ImageAsset", "VideoAsset", "DownloadAsset"];
-
-        foreach (string fieldName in assetFieldNames)
+        // Check for asset fields and return the corresponding GUID
+        if (contentItemData.ContainsKey("SelectedImage"))
         {
-            if (contentItemData.ContainsKey(fieldName))
-            {
-                // Find the corresponding field definition in TypeProvider
-                foreach (var contentType in mediaContentTypes)
-                {
-                    if (contentType.Fields != null)
-                    {
-                        var assetField = contentType.Fields.FirstOrDefault(f => f.Name == fieldName);
-                        if (assetField != null)
-                        {
-                            logger.LogDebug("Found asset field {FieldName} with GUID {FieldGuid} from TypeProvider",
-                                fieldName, assetField.Id);
-                            return assetField.Id.ToString();
-                        }
-                    }
-                }
-            }
+            logger.LogDebug("Found asset field SelectedImage, returning hardcoded GUID {FieldGuid}", selectedImageFieldGuid);
+            return selectedImageFieldGuid;
+        }
+
+        if (contentItemData.ContainsKey("SelectedVideo"))
+        {
+            logger.LogDebug("Found asset field SelectedVideo, returning hardcoded GUID {FieldGuid}", selectedVideoFieldGuid);
+            return selectedVideoFieldGuid;
+        }
+
+        if (contentItemData.ContainsKey("SelectedFile"))
+        {
+            logger.LogDebug("Found asset field SelectedFile, returning hardcoded GUID {FieldGuid}", selectedFileFieldGuid);
+            return selectedFileFieldGuid;
         }
 
         return null;

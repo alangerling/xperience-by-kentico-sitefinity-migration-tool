@@ -52,7 +52,7 @@ internal class MediaModelAdapter(ILogger<MediaModelAdapter> logger,
         availableUsers.TryGetValue(ValidationHelper.GetGuid(sourceMediaItem.CreatedBy, Guid.Empty), out var mediaCreatedByUser);
 
         // Determine content type based on media type
-        string mediaContentTypeName = GetContentTypeName(sourceMediaItem, configuration.SitefinityCodeNamePrefix);
+        string mediaContentTypeName = GetContentTypeName(sourceMediaItem);
 
         var mediaDataClass = mediaFileDependencies.DataClasses.Values.FirstOrDefault(dataClass => dataClass.ClassName == mediaContentTypeName);
 
@@ -117,7 +117,7 @@ internal class MediaModelAdapter(ILogger<MediaModelAdapter> logger,
         var adaptedContentItem = new ContentItemSimplifiedModel
         {
             ContentItemGUID = sourceMediaItem.Id,
-            ContentTypeName = mediaContentTypeName,
+            ContentTypeName = contentHelper.GetMappedClassName(null, mediaContentTypeName),
             Name = contentHelper.GetName(!string.IsNullOrWhiteSpace(sourceMediaItem.Title) ? sourceMediaItem.Title : sourceMediaItem.UrlName, sourceMediaItem.Id),
             LanguageData = mediaLanguageData,
             IsReusable = true,
@@ -128,15 +128,15 @@ internal class MediaModelAdapter(ILogger<MediaModelAdapter> logger,
         return adaptedContentItem;
     }
 
-    private static string GetContentTypeName(Media sourceMediaItem, string configuredCodeNamePrefix)
+    private static string GetContentTypeName(Media sourceMediaItem)
     {
         string contentType = sourceMediaItem switch
         {
-            _ when IsImage(sourceMediaItem) => $"{configuredCodeNamePrefix}.Image",
-            _ when IsVideo(sourceMediaItem) => $"{configuredCodeNamePrefix}.Video",
-            _ when IsAudio(sourceMediaItem) => $"{configuredCodeNamePrefix}.Video",
-            _ when IsDownload(sourceMediaItem) => $"{configuredCodeNamePrefix}.Download",
-            _ => $"{configuredCodeNamePrefix}.Download" // Default fallback to Download
+            _ when IsImage(sourceMediaItem) => "ContentBase.Image",
+            _ when IsVideo(sourceMediaItem) => "ContentBase.Video",
+            _ when IsAudio(sourceMediaItem) => "ContentBase.Video",
+            _ when IsDownload(sourceMediaItem) => "ContentBase.DownloadFile",
+            _ => "ContentBase.DownloadFile" // Default fallback to Download
         };
         return contentType;
     }
@@ -193,24 +193,24 @@ internal class MediaModelAdapter(ILogger<MediaModelAdapter> logger,
 
         if (IsImage(sourceMediaItem))
         {
-            contentItemDataDictionary["ImageTitle"] = title;
-            contentItemDataDictionary["ImageDescription"] = description;
-            contentItemDataDictionary["ImageAssetLegacyUrl"] = relativeLegacyUrl;
-            contentItemDataDictionary["ImageAsset"] = assetUrlSource;
+            //contentItemDataDictionary["ImageTitle"] = title;
+            //contentItemDataDictionary["ImageDescription"] = description;
+            //contentItemDataDictionary["ImageAssetLegacyUrl"] = relativeLegacyUrl;
+            contentItemDataDictionary["SelectedImage"] = assetUrlSource;
         }
         else if (IsVideo(sourceMediaItem) || IsAudio(sourceMediaItem))
         {
-            contentItemDataDictionary["VideoTitle"] = title;
-            contentItemDataDictionary["VideoDescription"] = description;
-            contentItemDataDictionary["VideoAssetLegacyUrl"] = relativeLegacyUrl;
-            contentItemDataDictionary["VideoAsset"] = assetUrlSource;
+            //contentItemDataDictionary["VideoTitle"] = title;
+            //contentItemDataDictionary["VideoDescription"] = description;
+            //contentItemDataDictionary["VideoAssetLegacyUrl"] = relativeLegacyUrl;
+            contentItemDataDictionary["SelectedVideo"] = assetUrlSource;
         }
         else // Default to Download
         {
-            contentItemDataDictionary["DownloadTitle"] = title;
-            contentItemDataDictionary["DownloadDescription"] = description;
-            contentItemDataDictionary["DownloadAssetLegacyUrl"] = relativeLegacyUrl;
-            contentItemDataDictionary["DownloadAsset"] = assetUrlSource;
+            //contentItemDataDictionary["DownloadTitle"] = title;
+            //contentItemDataDictionary["DownloadDescription"] = description;
+            //contentItemDataDictionary["DownloadAssetLegacyUrl"] = relativeLegacyUrl;
+            contentItemDataDictionary["SelectedFile"] = assetUrlSource;
         }
 
         return contentItemDataDictionary;

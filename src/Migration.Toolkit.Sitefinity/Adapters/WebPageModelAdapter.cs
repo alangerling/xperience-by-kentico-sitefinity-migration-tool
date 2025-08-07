@@ -59,7 +59,7 @@ internal class WebPageModelAdapter(ILogger<WebPageModelAdapter> logger,
         var pageContentItem = new ContentItemSimplifiedModel
         {
             ContentItemGUID = source.Id,
-            ContentTypeName = pageNodeClass.ClassName,
+            ContentTypeName = contentHelper.GetMappedClassName("elfaold.PageNode", pageNodeClass.ClassName),
             Name = contentHelper.GetName(source.Title, source.Id),
             LanguageData = languageData.ToList(),
             IsReusable = false,

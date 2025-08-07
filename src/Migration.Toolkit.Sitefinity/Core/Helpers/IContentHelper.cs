@@ -20,6 +20,14 @@ public interface IContentHelper
     public IEnumerable<ContentItemLanguageData> GetLanguageData(ContentDependencies contentDependencies, ICultureSdkItem cultureSdkItem, DataClassModel dataClassModel, UserInfoModel? createdByUser);
 
     /// <summary>
+    /// Gets the mapped Kentico class name for a given Sitefinity type name, or returns the original if no mapping exists.
+    /// </summary>
+    /// <param name="sitefinityTypeName">The Sitefinity type name</param>
+    /// <param name="originalClassName">The original class name from DataClassModel</param>
+    /// <returns>The mapped Kentico class name or the original if no mapping exists</returns>
+    public string GetMappedClassName(string? sitefinityTypeName, string? originalClassName);
+
+    /// <summary>
     /// Gets name using title and guid. Default length is 100.
     /// </summary>
     /// <param name="title">Title of content item.</param>

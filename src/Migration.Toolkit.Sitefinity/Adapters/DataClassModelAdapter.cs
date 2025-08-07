@@ -22,15 +22,24 @@ internal class DataClassModelAdapter(ILogger<DataClassModelAdapter> logger, Site
         bool isProgramType = source.Name == "Program";
         bool isPageType = (!isProgramType && (websiteTypes.Any(x => x.Id.Equals(source.Id)) || Array.Exists(Constants.ForcedWebsiteTypes, x => x.Equals(source.Name))));
 
-        var fields = MapFields(source.Fields);
+        bool makeFieldNameUnique = source.Name is not "Image" and not "DownloadFile" and not "Video" and not "ContentPage";
+
+        var fields = MapFields(source.Fields, makeFieldNameUnique);
+
+        string prefix = configuration.SitefinityCodeNamePrefix;
+
+        if (source.Name is "Image" or "DownloadFile" or "Video" or "ContentPage")
+        {
+            prefix = "ContentBase";
+        }
 
         var dataClassModel = new DataClassModel
         {
             ClassDisplayName = source.DisplayName,
             ClassGUID = source.Id,
-            ClassName = $"{configuration.SitefinityCodeNamePrefix}.{source.Name}",
-            ClassShortName = $"{configuration.SitefinityCodeNamePrefix}.{source.Name}",
-            ClassTableName = $"{configuration.SitefinityCodeNamePrefix}_{source.Name}",
+            ClassName = $"{prefix}.{source.Name}",
+            ClassShortName = $"{prefix}.{source.Name}",
+            ClassTableName = $"{prefix}_{source.Name}",
             ClassType = "Content",
             Fields = fields,
             ClassContentTypeType = isPageType ? "Website" : "Reusable",
@@ -57,7 +66,7 @@ internal class DataClassModelAdapter(ILogger<DataClassModelAdapter> logger, Site
         }
     }
 
-    private List<FormField> MapFields(IEnumerable<Field>? fields)
+    private List<FormField> MapFields(IEnumerable<Field>? fields, bool makeFieldNameUnique = false)
     {
         var formFields = new List<FormField>();
 
@@ -86,6 +95,12 @@ internal class DataClassModelAdapter(ILogger<DataClassModelAdapter> logger, Site
             {
                 logger.LogWarning("Field {FieldId} does not have a column name.", field.Id);
                 continue;
+            }
+
+            if (makeFieldNameUnique)
+            {
+                // Prepend the config code name prefix to the column name
+                columnName = $"{configuration.SitefinityCodeNamePrefix}_{columnName}";
             }
 
             int columnSize = ValidationHelper.GetInteger(fieldType.GetColumnSize(field), 255);

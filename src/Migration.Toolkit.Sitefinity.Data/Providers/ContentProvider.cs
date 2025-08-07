@@ -21,10 +21,10 @@ internal class ContentProvider(IRestClient restClient, ILogger<ContentProvider> 
         //"MagazineAuthor",
         //"MagazineArticle",
         //"MagazineSponsor",
-        //"TaxManualItem",
-        //"State",
-        //"CompendiumIssue",
-        //"CompendiumAuthor",
+        "TaxManualItem",
+        "State",
+        "CompendiumIssue",
+        "CompendiumAuthor",
     };
 
     private IEnumerable<SitefinityVersionChange>? versions;
@@ -36,7 +36,7 @@ internal class ContentProvider(IRestClient restClient, ILogger<ContentProvider> 
         var filteredTypeDefinitions = typeDefinitions
             .Where(td => allowedTypes.Contains(td.SitefinityTypeName))
             .ToList();
-        if (true || !filteredTypeDefinitions.Any())
+        if (!filteredTypeDefinitions.Any())
         {
             filteredTypeDefinitions = (List<SitefinityTypeDefinition>)typeDefinitions;
         }

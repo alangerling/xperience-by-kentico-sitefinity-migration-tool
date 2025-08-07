@@ -110,7 +110,7 @@ namespace Migration.Toolkit.Sitefinity.Services
 
             foreach (var dataClass in dataClasses.Values.OfType<DataClassModel>())
             {
-                if (!string.IsNullOrWhiteSpace(dataClass.ClassName) && dataClass.ClassGUID != null && (dataClass.ClassContentTypeType == "Reusable" || dataClass.ClassName == "elfa.Programs"))
+                if (!string.IsNullOrWhiteSpace(dataClass.ClassName) && dataClass.ClassGUID != null && (dataClass.ClassContentTypeType == "Reusable" || dataClass.ClassName == configuration.SitefinityCodeNamePrefix + ".Programs"))
                 {
                     string folderName = "";
                     if (!string.IsNullOrWhiteSpace(dataClass.ClassName))

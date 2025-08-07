@@ -43,27 +43,30 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
         users.TryGetValue(ValidationHelper.GetGuid(source.Owner, Guid.Empty), out var createdByUser);
         var languageData = contentHelper.GetLanguageData(dependenciesModel, source, dataClassModel, createdByUser);
 
+        // Get the mapped Kentico class name based on Sitefinity type
+        string mappedClassName = contentHelper.GetMappedClassName(source.TypeName, dataClassModel.ClassName);
+
         if (dataClassModel.ClassContentTypeType == null)
         {
-            return AdaptReusable(source, dataClassModel, languageData, rootFolder);
+            return AdaptReusable(source, languageData, rootFolder, mappedClassName);
         }
 
-        if (dataClassModel.ClassContentTypeType.Equals("Reusable") || dataClassModel.ClassName == "elfa.Program")
+        if (dataClassModel.ClassContentTypeType.Equals("Reusable") || dataClassModel.ClassName == $"{configuration.SitefinityCodeNamePrefix}.Program")
         {
-            return AdaptReusable(source, dataClassModel, languageData, new ContentFolderInfo { ContentFolderGUID = dataClassModel.ClassGUID ?? rootFolder.ContentFolderGUID });
+            return AdaptReusable(source, languageData, new ContentFolderInfo { ContentFolderGUID = dataClassModel.ClassGUID ?? rootFolder.ContentFolderGUID }, mappedClassName);
         }
 
         if (dataClassModel.ClassContentTypeType.Equals("Website"))
         {
-            return AdaptPage(source, dataClassModel, languageData, dependenciesModel);
+            return AdaptPage(source, dataClassModel, languageData, dependenciesModel, mappedClassName);
         }
 
-        return AdaptReusable(source, dataClassModel, languageData, rootFolder);
+        return AdaptReusable(source, languageData, rootFolder, mappedClassName);
     }
 
     private readonly Dictionary<int, Guid> stateContentItemGuids = [];
 
-    private ContentItemSimplifiedModel? AdaptPage(ContentItem source, DataClassModel dataClassModel, IEnumerable<ContentItemLanguageData> languageData, ContentDependencies dependenciesModel)
+    private ContentItemSimplifiedModel? AdaptPage(ContentItem source, DataClassModel dataClassModel, IEnumerable<ContentItemLanguageData> languageData, ContentDependencies dependenciesModel, string mappedClassName)
     {
         var channel = contentHelper.GetCurrentChannel(dependenciesModel.Channels.Values);
 
@@ -101,7 +104,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
             var noPageConfigPageContentItem = new ContentItemSimplifiedModel
             {
                 ContentItemGUID = source.Id,
-                ContentTypeName = dataClassModel.ClassName,
+                ContentTypeName = mappedClassName, // Use mapped class name instead of dataClassModel.ClassName
                 Name = contentHelper.GetName(source.Title, source.Id),
                 LanguageData = languageData.ToList(),
                 IsReusable = false,
@@ -114,14 +117,16 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
 
         foreach (var pageConfig in pageConfigs)
         {
-            if (dataClassModel.ClassName == "elfa.State")
+            string codeNamePrefix = configuration.SitefinityCodeNamePrefix;
+
+            if (dataClassModel.ClassName == $"{codeNamePrefix}.State")
             {
                 string[] segments = (source.ItemDefaultUrl ?? string.Empty).Split('/', StringSplitOptions.RemoveEmptyEntries);
                 string stateName = segments.Length > 0 ? segments[0] : string.Empty;
                 stateContentItemGuids[stateName.GetHashCode()] = source.Id;
             }
 
-            if (dataClassModel.ClassName is "elfa.TaxManualItem" or "elfa.CompendiumIssue")
+            if (dataClassModel.ClassName == $"{codeNamePrefix}.TaxManualItem" || dataClassModel.ClassName == $"{codeNamePrefix}.CompendiumIssue")
             {
                 // Extract the state name as the first folder segment from ItemDefaultUrl
                 string[] segments = (source.ItemDefaultUrl ?? string.Empty).Split('/', StringSplitOptions.RemoveEmptyEntries);
@@ -142,7 +147,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
                 var stateContentItem = new ContentItemSimplifiedModel
                 {
                     ContentItemGUID = source.Id,
-                    ContentTypeName = dataClassModel.ClassName,
+                    ContentTypeName = mappedClassName, // Use mapped class name instead of dataClassModel.ClassName
                     Name = contentHelper.GetName(source.Title, source.Id),
                     LanguageData = languageData.ToList(),
                     IsReusable = false,
@@ -176,7 +181,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
                 var listingChildPageContentItem = new ContentItemSimplifiedModel
                 {
                     ContentItemGUID = source.Id,
-                    ContentTypeName = dataClassModel.ClassName,
+                    ContentTypeName = mappedClassName, // Use mapped class name instead of dataClassModel.ClassName
                     Name = contentHelper.GetName(source.Title, source.Id),
                     LanguageData = languageData.ToList(),
                     IsReusable = false,
@@ -203,7 +208,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
                     return default;
                 }
 
-                detailPage.ContentTypeName = dataClassModel.ClassName;
+                detailPage.ContentTypeName = mappedClassName; // Use mapped class name instead of dataClassModel.ClassName
                 detailPage.LanguageData = languageData.ToList();
 
                 detailContentItems.Add(source.Id, detailPage);
@@ -224,7 +229,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
         var pageContentItem = new ContentItemSimplifiedModel
         {
             ContentItemGUID = source.Id,
-            ContentTypeName = dataClassModel.ClassName,
+            ContentTypeName = mappedClassName, // Use mapped class name instead of dataClassModel.ClassName
             Name = contentHelper.GetName(source.Title, source.Id),
             LanguageData = languageData.ToList(),
             IsReusable = false,
@@ -235,10 +240,10 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
         return pageContentItem;
     }
 
-    private ContentItemSimplifiedModel AdaptReusable(ContentItem source, DataClassModel dataClassModel, IEnumerable<ContentItemLanguageData> languageData, ContentFolderInfo folder) => new()
+    private ContentItemSimplifiedModel AdaptReusable(ContentItem source, IEnumerable<ContentItemLanguageData> languageData, ContentFolderInfo folder, string mappedClassName) => new()
     {
         ContentItemGUID = source.Id,
-        ContentTypeName = dataClassModel.ClassName,
+        ContentTypeName = mappedClassName, // Use mapped class name instead of dataClassModel.ClassName
         Name = contentHelper.GetName(source.Title, source.Id),
         LanguageData = languageData.ToList(),
         IsReusable = true,

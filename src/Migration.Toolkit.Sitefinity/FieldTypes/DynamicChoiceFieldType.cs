@@ -34,6 +34,33 @@ public class DynamicChoiceFieldType : FieldTypeBase, IFieldType
 
     public override FormFieldSettings GetSettings(Field sitefinityField)
     {
+        string fieldKey = sitefinityField.FieldName ?? sitefinityField.Name ?? string.Empty;
+
+        if (fieldKey.Equals("issuemonth", StringComparison.InvariantCultureIgnoreCase))
+        {
+            return new FormFieldSettings
+            {
+                ControlName = "Kentico.Administration.TagSelector",
+                CustomProperties = new Dictionary<string, object?>
+                {
+                    { "MinSelectedTagsCount", sitefinityField.IsRequired ? "1" : "0" },
+                    { "TaxonomyGroup", JsonSerializer.Serialize(new[] { "88558805-D283-4F4A-8527-7EB4208B6C93" }) }
+                }
+            };
+        }
+        if (fieldKey.Equals("issueyear", StringComparison.InvariantCultureIgnoreCase))
+        {
+            return new FormFieldSettings
+            {
+                ControlName = "Kentico.Administration.TagSelector",
+                CustomProperties = new Dictionary<string, object?>
+                {
+                    { "MinSelectedTagsCount", sitefinityField.IsRequired ? "1" : "0" },
+                    { "TaxonomyGroup", JsonSerializer.Serialize(new[] { "17D42AEF-D1E1-4A95-8111-6DBA7D65CDE6" }) }
+                }
+            };
+        }
+
         var options = new List<string>();
 
         if (sitefinityField.Choices == null)
@@ -66,33 +93,6 @@ public class DynamicChoiceFieldType : FieldTypeBase, IFieldType
         if (sitefinityField.ChoiceRenderType == null)
         {
             return Default(options);
-        }
-
-        string fieldKey = sitefinityField.FieldName ?? sitefinityField.Name ?? string.Empty;
-
-        if (fieldKey.Equals("issuemonth", StringComparison.InvariantCultureIgnoreCase))
-        {
-            return new FormFieldSettings
-            {
-                ControlName = "Kentico.Administration.TagSelector",
-                CustomProperties = new Dictionary<string, object?>
-                {
-                    { "MinSelectedTagsCount", sitefinityField.IsRequired ? "1" : "0" },
-                    { "TaxonomyGroup", JsonSerializer.Serialize(new[] { "88558805-D283-4F4A-8527-7EB4208B6C93" }) }
-                }
-            };
-        }
-        if (fieldKey.Equals("issueyear", StringComparison.InvariantCultureIgnoreCase))
-        {
-            return new FormFieldSettings
-            {
-                ControlName = "Kentico.Administration.TagSelector",
-                CustomProperties = new Dictionary<string, object?>
-                {
-                    { "MinSelectedTagsCount", sitefinityField.IsRequired ? "1" : "0" },
-                    { "TaxonomyGroup", JsonSerializer.Serialize(new[] { "17D42AEF-D1E1-4A95-8111-6DBA7D65CDE6" }) }
-                }
-            };
         }
 
         if (sitefinityField.ChoiceRenderType.Equals("DropDownList"))
@@ -191,13 +191,13 @@ Value	TagGUID
         // Handle IssueYear and IssueMonth mapping
         if (fieldName.Equals("IssueYear", StringComparison.OrdinalIgnoreCase))
         {
-            List<object> identifiers = [];
+            var identifiers = new List<object>();
 
-            if (fieldValue is string strValue)
+            if (fieldValue is string strValue && !string.IsNullOrWhiteSpace(strValue))
             {
                 var mappedGuid = MapIssueYear(strValue);
 
-                if (mappedGuid != null && mappedGuid.HasValue)
+                if (mappedGuid.HasValue)
                 {
                     identifiers.Add(new { Identifier = mappedGuid.Value });
                 }
@@ -207,32 +207,32 @@ Value	TagGUID
                 foreach (object? item in enumerable)
                 {
                     string? value = item?.ToString();
-                    var mappedGuid = MapIssueYear(value ?? string.Empty);
-
-                    if (mappedGuid != null && mappedGuid.HasValue)
+                    if (!string.IsNullOrWhiteSpace(value))
                     {
-                        identifiers.Add(new { Identifier = mappedGuid.Value });
+                        var mappedGuid = MapIssueYear(value);
+
+                        if (mappedGuid.HasValue)
+                        {
+                            identifiers.Add(new { Identifier = mappedGuid.Value });
+                        }
                     }
                 }
             }
 
-            if (identifiers.Count == 0)
-            {
-                return string.Empty; // Return empty if no valid identifiers found
-            }
-
+            // Return empty array JSON when no identifiers found
             return JsonSerializer.Serialize(identifiers);
         }
-        // Handle IssueYear and IssueMonth mapping
+
+        // Handle IssueMonth mapping
         if (fieldName.Equals("IssueMonth", StringComparison.OrdinalIgnoreCase))
         {
-            List<object> identifiers = [];
+            var identifiers = new List<object>();
 
-            if (fieldValue is string strValue)
+            if (fieldValue is string strValue && !string.IsNullOrWhiteSpace(strValue))
             {
                 var mappedGuid = MapIssueMonth(strValue);
 
-                if (mappedGuid != null && mappedGuid.HasValue)
+                if (mappedGuid.HasValue)
                 {
                     identifiers.Add(new { Identifier = mappedGuid.Value });
                 }
@@ -242,23 +242,21 @@ Value	TagGUID
                 foreach (object? item in enumerable)
                 {
                     string? value = item?.ToString();
-                    var mappedGuid = MapIssueMonth(value ?? string.Empty);
-
-                    if (mappedGuid != null && mappedGuid.HasValue)
+                    if (!string.IsNullOrWhiteSpace(value))
                     {
-                        identifiers.Add(new { Identifier = mappedGuid.Value });
+                        var mappedGuid = MapIssueMonth(value);
+
+                        if (mappedGuid.HasValue)
+                        {
+                            identifiers.Add(new { Identifier = mappedGuid.Value });
+                        }
                     }
                 }
             }
 
-            if (identifiers.Count == 0)
-            {
-                return string.Empty; // Return empty if no valid identifiers found
-            }
-
+            // Return empty array JSON when no identifiers found
             return JsonSerializer.Serialize(identifiers);
         }
-
 
         // Default: return the raw value
         return fieldValue ?? string.Empty;
