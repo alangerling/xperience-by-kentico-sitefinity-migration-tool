@@ -69,7 +69,7 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                 FieldMappings = new Dictionary<string, string>
                 {
                     { "SelectedImage", "ImageAsset" },
-                    //{ "UrlSlug", "UrlName" },
+                    { "ImageAltText", "ImageAltText" },
                 }
             }
         },
@@ -82,7 +82,7 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                 FieldMappings = new Dictionary<string, string>
                 {
                     { "SelectedFile", "DownloadAsset" },
-                    //{ "UrlSlug", "UrlName" },
+                    { "ListingItemTitle", "ListingItemTitle" },
                 }
             }
         },
@@ -91,11 +91,11 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
             new ContentTypeMapping
             {
                 SitefinityTypeName = "Video",
-                KenticoClassName = "ContentBase.Video",
+                KenticoClassName = "ContentBase.DownloadFile",
                 FieldMappings = new Dictionary<string, string>
                 {
-                    { "SelectedVideo", "VideoAsset" },
-                    //{ "UrlSlug", "UrlName" },
+                    { "SelectedFile", "DownloadAsset" },
+                    { "ListingItemTitle", "ListingItemTitle" },
                 }
             }
         },
@@ -108,7 +108,6 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                 FieldMappings = new Dictionary<string, string>
                 {
                     { "PageTitle", "Title" },
-                    //{ "UrlSlug", "UrlName" },
                 }
             }
         },
@@ -117,11 +116,22 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
             new ContentTypeMapping
             {
                 SitefinityTypeName = "State",
-                KenticoClassName = "Elfa.State",
+                KenticoClassName = "ContentBase.ContentPage",
                 FieldMappings = new Dictionary<string, string>
                 {
                     { "PageTitle", "Title" },
-                    //{ "UrlSlug", "UrlName" },
+                }
+            }
+        },
+        {
+            "State",
+            new ContentTypeMapping
+            {
+                SitefinityTypeName = "State",
+                KenticoClassName = "ContentBase.ContentPage",
+                FieldMappings = new Dictionary<string, string>
+                {
+                    { "PageTitle", "Title" },
                 }
             }
         },
@@ -139,7 +149,6 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                     { "PublicationDate", "ReleaseDate" },
                     { "RelatedFilesDownloads", "Documents" },
                     { "PageImage", "Image" },
-                    //{ "UrlSlug", "UrlName" },
                     { "StateTaxonomy", "" }
                 }
             }
@@ -159,7 +168,6 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                     { "RelatedState", "" },
                     { "PublicationAuthor", "LastReviewAuthor" },
                     { "PublicationDate", "LastReviewDate" },
-                    //{ "UrlSlug", "UrlName" },
                     { "PublicationAuthorPages", "Authors" }
                 }
             }
@@ -177,7 +185,6 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                     { "ContactEmail", "Email" },
                     { "PersonOrganization", "LawFirmName" },
                     { "PersonWebsiteUrl", "LawFirmWebsite" },
-                    //{ "UrlSlug", "UrlName" },
                 }
             }
         },
@@ -195,7 +202,6 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                     { "PageImage", "CoverImage" },
                     { "MagazineIssueSponsors", "Sponsors" },
                     { "PublicationDate", "PublicationDate" },
-                    //{ "UrlSlug", "UrlName" }
                 }
             }
         },
@@ -240,7 +246,6 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                     { "ArticleAuthor", "AuthorByline" },
                     { "AuthorPages", "ArticleAuthor" },
                     { "PageImage", "HeroImage" },
-                    //{ "URLSlug", "UrlName" },
                 }
             }
         }
@@ -730,29 +735,24 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
     /// <returns>The field definition GUID from TypeProvider, or null if not found.</returns>
     private string? GetAssetFieldGuidFromTypeProvider(Dictionary<string, object?> contentItemData)
     {
-        // Define the asset field names and their corresponding hardcoded GUIDs
+        // Define the asset field names and their corresponding GUIDs from TypeProvider
         string selectedImageFieldGuid = "e477a59e-1df6-4e2f-9986-20ab37342540";
-        string selectedVideoFieldGuid = "aaaaaaaa-1df6-4e2f-9986-20ab37342540";
-        string selectedFileFieldGuid = "d83a1aaf-18c3-4508-be2c-6950cbee5b16";
+        string selectedFileFieldGuid = "141d77fc-2e06-49eb-b14c-2ff58f5ce730"; // Updated to match TypeProvider GUID
 
         // Check for asset fields and return the corresponding GUID
         if (contentItemData.ContainsKey("SelectedImage"))
         {
-            logger.LogDebug("Found asset field SelectedImage, returning hardcoded GUID {FieldGuid}", selectedImageFieldGuid);
+            logger.LogDebug("Found asset field SelectedImage, returning GUID {FieldGuid}", selectedImageFieldGuid);
             return selectedImageFieldGuid;
-        }
-
-        if (contentItemData.ContainsKey("SelectedVideo"))
-        {
-            logger.LogDebug("Found asset field SelectedVideo, returning hardcoded GUID {FieldGuid}", selectedVideoFieldGuid);
-            return selectedVideoFieldGuid;
         }
 
         if (contentItemData.ContainsKey("SelectedFile"))
         {
-            logger.LogDebug("Found asset field SelectedFile, returning hardcoded GUID {FieldGuid}", selectedFileFieldGuid);
+            logger.LogDebug("Found asset field SelectedFile, returning GUID {FieldGuid}", selectedFileFieldGuid);
             return selectedFileFieldGuid;
         }
+
+        // Remove SelectedVideo check since videos now use SelectedFile
 
         return null;
     }
@@ -765,7 +765,7 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
             .Any(contentItemData =>
             {
                 // Check for various asset URL field names based on content type
-                string[] assetUrlFields = new[] { "ImageAssetLegacyUrl", "DownloadAssetLegacyUrl", "VideoAssetLegacyUrl" };
+                string[] assetUrlFields = new[] { "ImageAssetLegacyUrl", "DownloadAssetLegacyUrl" };
 
                 foreach (string fieldName in assetUrlFields)
                 {

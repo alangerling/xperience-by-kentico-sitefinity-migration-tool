@@ -21,10 +21,10 @@ internal class ContentProvider(IRestClient restClient, ILogger<ContentProvider> 
         //"MagazineAuthor",
         //"MagazineArticle",
         //"MagazineSponsor",
-        "TaxManualItem",
+        //"TaxManualItem",
         "State",
-        "CompendiumIssue",
-        "CompendiumAuthor",
+        //"CompendiumIssue",
+        //"CompendiumAuthor",
     };
 
     private IEnumerable<SitefinityVersionChange>? versions;

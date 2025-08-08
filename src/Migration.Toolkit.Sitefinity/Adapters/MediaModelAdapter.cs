@@ -133,8 +133,8 @@ internal class MediaModelAdapter(ILogger<MediaModelAdapter> logger,
         string contentType = sourceMediaItem switch
         {
             _ when IsImage(sourceMediaItem) => "ContentBase.Image",
-            _ when IsVideo(sourceMediaItem) => "ContentBase.Video",
-            _ when IsAudio(sourceMediaItem) => "ContentBase.Video",
+            _ when IsVideo(sourceMediaItem) => "ContentBase.DownloadFile", // Changed from ContentBase.Video to ContentBase.DownloadFile
+            _ when IsAudio(sourceMediaItem) => "ContentBase.DownloadFile", // Changed from ContentBase.Video to ContentBase.DownloadFile
             _ when IsDownload(sourceMediaItem) => "ContentBase.DownloadFile",
             _ => "ContentBase.DownloadFile" // Default fallback to Download
         };
@@ -175,6 +175,8 @@ internal class MediaModelAdapter(ILogger<MediaModelAdapter> logger,
 
         var assetUrlSource = CreateAssetUrlSource(sourceMediaItem, constructedAssetUrl);
         string title = !string.IsNullOrWhiteSpace(sourceMediaItem.Title) ? sourceMediaItem.Title : sourceMediaItem.UrlName;
+        string url = !string.IsNullOrWhiteSpace(sourceMediaItem.Title) ? sourceMediaItem.Url : sourceMediaItem.UrlName;
+        string altText = sourceMediaItem.Title ?? string.Empty;
         string description = sourceMediaItem.Description ?? string.Empty;
 
         // Convert absolute URL to relative URL for legacy fields
@@ -193,21 +195,23 @@ internal class MediaModelAdapter(ILogger<MediaModelAdapter> logger,
 
         if (IsImage(sourceMediaItem))
         {
-            //contentItemDataDictionary["ImageTitle"] = title;
+            contentItemDataDictionary["ImageAltText"] = altText;
             //contentItemDataDictionary["ImageDescription"] = description;
             //contentItemDataDictionary["ImageAssetLegacyUrl"] = relativeLegacyUrl;
             contentItemDataDictionary["SelectedImage"] = assetUrlSource;
         }
         else if (IsVideo(sourceMediaItem) || IsAudio(sourceMediaItem))
         {
-            //contentItemDataDictionary["VideoTitle"] = title;
-            //contentItemDataDictionary["VideoDescription"] = description;
-            //contentItemDataDictionary["VideoAssetLegacyUrl"] = relativeLegacyUrl;
-            contentItemDataDictionary["SelectedVideo"] = assetUrlSource;
+            // Videos and audio are now treated as downloads, using SelectedFile instead of SelectedVideo
+            contentItemDataDictionary["ListingItemTitle"] = title;
+            //contentItemDataDictionary["DownloadDescription"] = description;
+            //contentItemDataDictionary["DownloadAssetLegacyUrl"] = relativeLegacyUrl;
+            contentItemDataDictionary["SelectedFile"] = assetUrlSource;
         }
-        else // Default to Download
+        else
         {
-            //contentItemDataDictionary["DownloadTitle"] = title;
+            // Downloads and other file types
+            contentItemDataDictionary["ListingItemTitle"] = title;
             //contentItemDataDictionary["DownloadDescription"] = description;
             //contentItemDataDictionary["DownloadAssetLegacyUrl"] = relativeLegacyUrl;
             contentItemDataDictionary["SelectedFile"] = assetUrlSource;

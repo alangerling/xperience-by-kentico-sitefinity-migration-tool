@@ -22,13 +22,13 @@ internal class DataClassModelAdapter(ILogger<DataClassModelAdapter> logger, Site
         bool isProgramType = source.Name == "Program";
         bool isPageType = (!isProgramType && (websiteTypes.Any(x => x.Id.Equals(source.Id)) || Array.Exists(Constants.ForcedWebsiteTypes, x => x.Equals(source.Name))));
 
-        bool makeFieldNameUnique = source.Name is not "Image" and not "DownloadFile" and not "Video" and not "ContentPage";
+        bool makeFieldNameUnique = source.Name is not "Image" and not "DownloadFile" and not "ContentPage";
 
         var fields = MapFields(source.Fields, makeFieldNameUnique);
 
         string prefix = configuration.SitefinityCodeNamePrefix;
 
-        if (source.Name is "Image" or "DownloadFile" or "Video" or "ContentPage")
+        if (source.Name is "Image" or "DownloadFile" or "ContentPage")
         {
             prefix = "ContentBase";
         }

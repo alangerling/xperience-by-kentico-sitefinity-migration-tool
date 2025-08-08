@@ -52,6 +52,16 @@ internal class DataClassImportService(IImportService kenticoImportService,
     {
         var dataClasses = Get(dependencies);
 
+        var filteredDataClasses = dataClasses
+            .Where(x => x is DataClassModel or ContentTypeChannelModel)
+            .OfType<DataClassModel>()
+            .Where(dc => !string.Equals(dc.ClassName, "ContentBase.Image", StringComparison.OrdinalIgnoreCase) &&
+                         !string.Equals(dc.ClassName, "ContentBase.DownloadFile", StringComparison.OrdinalIgnoreCase) &&
+                         !string.Equals(dc.ClassName, "ContentBase.ContentPage", StringComparison.OrdinalIgnoreCase))
+            .Cast<IUmtModel>()
+            .Concat(dataClasses.OfType<ContentTypeChannelModel>())
+            .ToList();
+
         var importedModels = new Dictionary<Guid, IUmtModel>();
 
         foreach (var dataClass in dataClasses.OfType<DataClassModel>())
@@ -69,7 +79,7 @@ internal class DataClassImportService(IImportService kenticoImportService,
         return new SitefinityImportResult
         {
             ImportedModels = importedModels,
-            Observer = kenticoImportService.StartImport(dataClasses, observer)
+            Observer = kenticoImportService.StartImport(filteredDataClasses, observer)
         };
     }
 }

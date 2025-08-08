@@ -41,7 +41,7 @@ internal class TypeProvider(SitefinityDataConfiguration configuration, ILogger<T
         };
         mediaTypes.Add(imageType);
 
-        // Create Download content type
+        // Create Download content type (used for both downloads and videos)
         var downloadFields = CreateDownloadFields();
         var downloadType = new StaticSitefinityType
         {
@@ -54,18 +54,8 @@ internal class TypeProvider(SitefinityDataConfiguration configuration, ILogger<T
         };
         mediaTypes.Add(downloadType);
 
-        // Create Video content type
-        var videoFields = CreateVideoFields();
-        var videoType = new StaticSitefinityType
-        {
-            Id = Guid.Parse("65B6339B-F18D-4D2E-AF69-B9C8F7820C32"),
-            DisplayName = "Video",
-            ClassName = "Video",
-            Namespace = "Migration.Toolkit.Media",
-            Fields = videoFields,
-            LastModified = DateTime.Now
-        };
-        mediaTypes.Add(videoType);
+        // Video content type removed - videos now use DownloadFile content type
+        // but still maintain /videos folder structure in ContentFolderManager
 
         return mediaTypes;
     }
@@ -76,19 +66,24 @@ internal class TypeProvider(SitefinityDataConfiguration configuration, ILogger<T
         {
             Id = Guid.Parse("e477a59e-1df6-4e2f-9986-20ab37342540"),
             Name = "SelectedImage",
-            Title = "Selected Image",
+            Title = "Image",
             ColumnName = "SelectedImage",
             WidgetTypeName = "Kentico.Administration.ContentItemAssetUploader",
-            IsRequired = false
+            IsRequired = false,
+            DBType = "contentitemasset",
+            FileExtensions = "jpg;jpeg;png;webp;bmp;svg;"
         },
         new()
         {
-            Id = Guid.Parse("15E39897-1A49-440F-9EF2-D8F6151B3569"),
-            Name = "ImageAssetLegacyUrl",
-            Title = "Asset Legacy Url",
-            ColumnName = "ImageAssetLegacyUrl",
-            WidgetTypeName = "Kentico.Administration.Label",
-            IsRequired = false
+            Id = Guid.Parse("0c933519-4bc4-4cc1-8eb5-c3f685c7ab53"),
+            Name = "ImageAltText",
+            Title = "Alt text",
+            ColumnName = "ImageAltText",
+            WidgetTypeName = "Kentico.Administration.TextInput",
+            IsRequired = false,
+            DBType = "text",
+            DBLength = "200",
+            InstructionalText = "Leave blank unless image helps users understand content"
         }
     ];
 
@@ -101,38 +96,22 @@ internal class TypeProvider(SitefinityDataConfiguration configuration, ILogger<T
             Title = "Selected File",
             ColumnName = "SelectedFile",
             WidgetTypeName = "Kentico.Administration.ContentItemAssetUploader",
-            IsRequired = false
-        },
-        new()
-        {
-            Id = Guid.Parse("30B652D1-D071-4FED-955E-BC7A5E0C260A"),
-            Name = "DownloadAssetLegacyUrl",
-            Title = "Asset Legacy Url",
-            ColumnName = "DownloadAssetLegacyUrl",
-            WidgetTypeName = "Kentico.Administration.Label",
-            IsRequired = false
+            IsRequired = false,
+            DBType = "contentitemasset",
+            FileExtensions = "wav;mp3;mp4;mpg;mpeg;avi;webm;wmv;txt;pdf;docx;pptx;xlsx",
+            InstructionalText = "Use this type for downloadable files (use the Image type for all image formats.)"
         }
-    ];
-
-    private static List<Field> CreateVideoFields() =>
-    [
+        ,
         new()
         {
-            Id = Guid.Parse("141d77fc-2e06-49eb-b14c-2ff58f5ce730"),
-            Name = "SelectedFile",
-            Title = "Selected File",
-            ColumnName = "SelectedFile",
-            WidgetTypeName = "Kentico.Administration.ContentItemAssetUploader",
-            IsRequired = false
-        },
-        new()
-        {
-            Id = Guid.Parse("30B652D1-D071-4FED-955E-BC7A5E0C260A"),
-            Name = "DownloadAssetLegacyUrl",
-            Title = "Asset Legacy Url",
-            ColumnName = "DownloadAssetLegacyUrl",
-            WidgetTypeName = "Kentico.Administration.Label",
-            IsRequired = false
+            Id = Guid.Parse("add02e6b-b70b-43fb-9a84-553d365ddecc"),
+            Name = "ListingItemTitle",
+            Title = "Listing title",
+            ColumnName = "ListingItemTitle",
+            WidgetTypeName = "Kentico.Administration.TextInput",
+            IsRequired = false,
+            DBType = "text",
+            DBLength = "256"
         }
     ];
 
