@@ -197,7 +197,7 @@ internal class MediaModelAdapter(ILogger<MediaModelAdapter> logger,
         {
             contentItemDataDictionary["ImageAltText"] = altText;
             //contentItemDataDictionary["ImageDescription"] = description;
-            //contentItemDataDictionary["ImageAssetLegacyUrl"] = relativeLegacyUrl;
+            contentItemDataDictionary["ImageLegacyUrl"] = relativeLegacyUrl;
             contentItemDataDictionary["SelectedImage"] = assetUrlSource;
         }
         else if (IsVideo(sourceMediaItem) || IsAudio(sourceMediaItem))
@@ -205,7 +205,7 @@ internal class MediaModelAdapter(ILogger<MediaModelAdapter> logger,
             // Videos and audio are now treated as downloads, using SelectedFile instead of SelectedVideo
             contentItemDataDictionary["ListingItemTitle"] = title;
             //contentItemDataDictionary["DownloadDescription"] = description;
-            //contentItemDataDictionary["DownloadAssetLegacyUrl"] = relativeLegacyUrl;
+            contentItemDataDictionary["DownloadLegacyUrl"] = relativeLegacyUrl;
             contentItemDataDictionary["SelectedFile"] = assetUrlSource;
         }
         else
@@ -213,7 +213,7 @@ internal class MediaModelAdapter(ILogger<MediaModelAdapter> logger,
             // Downloads and other file types
             contentItemDataDictionary["ListingItemTitle"] = title;
             //contentItemDataDictionary["DownloadDescription"] = description;
-            //contentItemDataDictionary["DownloadAssetLegacyUrl"] = relativeLegacyUrl;
+            contentItemDataDictionary["DownloadLegacyUrl"] = relativeLegacyUrl;
             contentItemDataDictionary["SelectedFile"] = assetUrlSource;
         }
 
