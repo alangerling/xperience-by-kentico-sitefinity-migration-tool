@@ -52,14 +52,9 @@ internal class DataClassImportService(IImportService kenticoImportService,
     {
         var dataClasses = Get(dependencies);
 
+        // Filter to keep only ContentTypeChannelModel types, exclude all DataClassModel instances
         var filteredDataClasses = dataClasses
-            .Where(x => x is DataClassModel or ContentTypeChannelModel)
-            .OfType<DataClassModel>()
-            .Where(dc => !string.Equals(dc.ClassName, "ContentBase.Image", StringComparison.OrdinalIgnoreCase) &&
-                         !string.Equals(dc.ClassName, "ContentBase.DownloadFile", StringComparison.OrdinalIgnoreCase) &&
-                         !string.Equals(dc.ClassName, "ContentBase.ContentPage", StringComparison.OrdinalIgnoreCase))
-            .Cast<IUmtModel>()
-            .Concat(dataClasses.OfType<ContentTypeChannelModel>())
+            .Where(x => x is ContentTypeChannelModel)
             .ToList();
 
         var importedModels = new Dictionary<Guid, IUmtModel>();

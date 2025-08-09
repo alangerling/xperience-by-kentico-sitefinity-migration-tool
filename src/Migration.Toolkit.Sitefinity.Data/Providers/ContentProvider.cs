@@ -11,20 +11,17 @@ using Progress.Sitefinity.RestSdk;
 namespace Migration.Toolkit.Data.Providers;
 internal class ContentProvider(IRestClient restClient, ILogger<ContentProvider> logger, IDbContextFactory<SitefinityContext> sitefinityContext) : RestSdkBase(restClient), IContentProvider
 {
-    // Replace the tuple declaration with a single-element record or struct, or use a string array if only one value is needed.
-    // Here, a string array is sufficient since only the Name is used.
-    // Leave empty to not filter by type
     private static readonly string[] allowedTypes = {
         //"ElfaEvent",
-        //"Program",
-        //"MagazineIssue",
-        //"MagazineAuthor",
-        //"MagazineArticle",
-        //"MagazineSponsor",
-        //"TaxManualItem",
+        "Program",
+        "MagazineIssue",
+        "MagazineAuthor",
+        "MagazineArticle",
+        "MagazineSponsor",
+        "TaxManualItem",
         "State",
-        //"CompendiumIssue",
-        //"CompendiumAuthor",
+        "CompendiumIssue",
+        "CompendiumAuthor",
     };
 
     private IEnumerable<SitefinityVersionChange>? versions;

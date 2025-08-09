@@ -45,6 +45,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
 
         // Get the mapped Kentico class name based on Sitefinity type
         string mappedClassName = contentHelper.GetMappedClassName(source.TypeName, dataClassModel.ClassName);
+        logger.LogWarning("mappedClassName {mappedClassName} source.TypeName {source.TypeName} dataClassModel.ClassName {dataClassModel.ClassName}.", mappedClassName, source.TypeName, dataClassModel.ClassName);
 
         if (dataClassModel.ClassContentTypeType == null)
         {

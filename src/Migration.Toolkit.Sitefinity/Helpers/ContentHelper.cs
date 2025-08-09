@@ -61,7 +61,7 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
     private static readonly Dictionary<string, ContentTypeMapping> contentTypeMappings = new()
     {
         {
-            "elfaold.Image",
+            "Image",
             new ContentTypeMapping
             {
                 SitefinityTypeName = "Image",
@@ -74,7 +74,7 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
             }
         },
         {
-            "elfaold.Download",
+            "Download",
             new ContentTypeMapping
             {
                 SitefinityTypeName = "Download",
@@ -87,7 +87,7 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
             }
         },
         {
-            "elfaold.Video",
+            "Video",
             new ContentTypeMapping
             {
                 SitefinityTypeName = "Video",
@@ -100,22 +100,10 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
             }
         },
         {
-            "elfaold.PageNode",
+            "PageNode",
             new ContentTypeMapping
             {
                 SitefinityTypeName = "PageNode",
-                KenticoClassName = "ContentBase.ContentPage",
-                FieldMappings = new Dictionary<string, string>
-                {
-                    { "PageTitle", "Title" },
-                }
-            }
-        },
-        {
-            "elfaold.State",
-            new ContentTypeMapping
-            {
-                SitefinityTypeName = "State",
                 KenticoClassName = "ContentBase.ContentPage",
                 FieldMappings = new Dictionary<string, string>
                 {
@@ -136,7 +124,7 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
             }
         },
         {
-            "elfaold.TaxManualItem",
+            "TaxManualItem",
             new ContentTypeMapping
             {
                 SitefinityTypeName = "TaxManualItem",
@@ -149,12 +137,12 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                     { "PublicationDate", "ReleaseDate" },
                     { "RelatedFilesDownloads", "Documents" },
                     { "PageImage", "Image" },
-                    { "StateTaxonomy", "" }
+                    { "JurisdictionState", "StateTaxonomy" }
                 }
             }
         },
         {
-            "elfaold.CompendiumIssue",
+            "CompendiumIssue",
             new ContentTypeMapping
             {
                 SitefinityTypeName = "CompendiumIssue",
@@ -165,7 +153,7 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                     { "PageCopyHtml1", "Description" },
                     { "PageCopyHtml2", "Comments" },
                     { "Question", "Question" },
-                    { "RelatedState", "" },
+                    { "JurisdictionState", "StateTaxonomy" },
                     { "PublicationAuthor", "LastReviewAuthor" },
                     { "PublicationDate", "LastReviewDate" },
                     { "PublicationAuthorPages", "Authors" }
@@ -173,11 +161,11 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
             }
         },
         {
-            "elfaold.CompendiumAuthor",
+            "CompendiumAuthor",
             new ContentTypeMapping
             {
                 SitefinityTypeName = "CompendiumAuthor",
-                KenticoClassName = "Elfa.CompendiumAuthor",
+                KenticoClassName = "ContentBase.PersonDetail",
                 FieldMappings = new Dictionary<string, string>
                 {
                     { "PageTitle", "Title" },
@@ -189,7 +177,7 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
             }
         },
         {
-            "elfaold.MagazineIssue",
+            "MagazineIssue",
             new ContentTypeMapping
             {
                 SitefinityTypeName = "MagazineIssue",
@@ -206,7 +194,7 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
             }
         },
         {
-            "elfaold.MagazineSponsor",
+            "MagazineSponsor",
             new ContentTypeMapping
             {
                 SitefinityTypeName = "MagazineSponsor",
@@ -219,7 +207,7 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
             }
         },
         {
-            "elfaold.MagazineAuthor",
+            "MagazineAuthor",
             new ContentTypeMapping
             {
                 SitefinityTypeName = "MagazineAuthor",
@@ -232,7 +220,7 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
             }
         },
         {
-            "elfaold.MagazineArticle",
+            "MagazineArticle",
             new ContentTypeMapping
             {
                 SitefinityTypeName = "MagazineArticle",
@@ -248,6 +236,21 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                     { "PageImage", "HeroImage" },
                 }
             }
+        },
+        {
+            "Prorgram",
+            new ContentTypeMapping
+            {
+                SitefinityTypeName = "Prorgram",
+                KenticoClassName = "Elfa.EventProgram",
+                FieldMappings = new Dictionary<string, string>
+                {
+                    { "ProgramTitle", "Title" },
+                    { "ProgramStartTime", "StartDate" },
+                    { "ProgramEndTime", "StartDate" },
+                    { "ProgramSummary", "Summary" },
+                }
+            }
         }
     };
 
@@ -259,7 +262,15 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
     /// <returns>The mapped Kentico class name or the original if no mapping exists</returns>
     public string GetMappedClassName(string? sitefinityTypeName, string? originalClassName)
     {
-        if (string.IsNullOrEmpty(sitefinityTypeName) || !contentTypeMappings.TryGetValue(sitefinityTypeName, out var mapping))
+        if (string.IsNullOrEmpty(sitefinityTypeName))
+        {
+            return originalClassName ?? string.Empty;
+        }
+
+        // Strip namespace from sitefinityTypeName before lookup
+        string typeNameWithoutNamespace = StripNamespace(sitefinityTypeName);
+
+        if (!contentTypeMappings.TryGetValue(typeNameWithoutNamespace, out var mapping))
         {
             return originalClassName ?? string.Empty;
         }
@@ -268,6 +279,34 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
             sitefinityTypeName, mapping.KenticoClassName);
 
         return mapping.KenticoClassName;
+    }
+
+    /// <summary>
+    /// Gets all content type mapping keys from the content type mappings
+    /// </summary>
+    /// <returns>Collection of content type mapping keys</returns>
+    public static IEnumerable<string> GetContentTypeMappingKeys() => contentTypeMappings.Keys;
+
+    /// <summary>
+    /// Gets all Kentico class names from the content type mappings
+    /// </summary>
+    /// <returns>Collection of Kentico class names</returns>
+    public static IEnumerable<string> GetKenticoClassNames() => contentTypeMappings.Values.Select(mapping => mapping.KenticoClassName);
+
+    /// <summary>
+    /// Strips the namespace from a Sitefinity type name (e.g., "elfaold.TaxManualItem" becomes "TaxManualItem")
+    /// </summary>
+    /// <param name="sitefinityTypeName">The full Sitefinity type name with namespace</param>
+    /// <returns>The type name without namespace</returns>
+    private static string StripNamespace(string sitefinityTypeName)
+    {
+        if (string.IsNullOrEmpty(sitefinityTypeName))
+        {
+            return sitefinityTypeName;
+        }
+
+        int lastDotIndex = sitefinityTypeName.LastIndexOf('.');
+        return lastDotIndex >= 0 ? sitefinityTypeName[(lastDotIndex + 1)..] : sitefinityTypeName;
     }
 
     public IEnumerable<ContentItemLanguageData> GetLanguageData(ContentDependencies contentDependencies, ICultureSdkItem cultureSdkItem, DataClassModel dataClassModel, UserInfoModel? createdByUser)
@@ -365,6 +404,12 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                 {
                     object? data = fieldType.GetData(sdkItem, field.Name);
 
+                    // Log information about StateTaxonomyField processing
+                    if (fieldType is StateTaxonomyFieldType)
+                    {
+                        logger.LogDebug("Processing StateTaxonomyField '{FieldName}' with data: {Data}", field.Name, data);
+                    }
+
                     // If data is null or empty string, add directly and skip further processing
                     if (data == null || (data is string str && string.IsNullOrEmpty(str)))
                     {
@@ -419,33 +464,55 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
 
         // Apply content type mappings if they exist
         string? sitefinityTypeName = dataClassModel.ClassName;
-        if (!string.IsNullOrEmpty(sitefinityTypeName) && contentTypeMappings.TryGetValue(sitefinityTypeName, out var mapping))
+        if (!string.IsNullOrEmpty(sitefinityTypeName))
         {
-            newContentItemData = []; // Reset for mapped content types
+            // Strip namespace from sitefinityTypeName before lookup
+            string typeNameWithoutNamespace = StripNamespace(sitefinityTypeName);
 
-            // Apply field mappings
-            foreach (var fieldMapping in mapping.FieldMappings)
+            if (contentTypeMappings.TryGetValue(typeNameWithoutNamespace, out var mapping))
             {
-                string sitefinityFieldName = fieldMapping.Value;
-                string kenticoFieldName = fieldMapping.Key;
+                newContentItemData = []; // Reset for mapped content types
 
-                // Skip empty Kentico field names (used for fields that should be excluded)
-                if (string.IsNullOrEmpty(kenticoFieldName))
+                // Apply field mappings
+                foreach (var fieldMapping in mapping.FieldMappings)
                 {
-                    continue;
+                    string sitefinityFieldName = fieldMapping.Value;
+                    string kenticoFieldName = fieldMapping.Key;
+
+                    // Skip empty Kentico field names (used for fields that should be excluded)
+                    if (string.IsNullOrEmpty(kenticoFieldName))
+                    {
+                        continue;
+                    }
+
+                    // Map the field if it exists in the original data
+                    if (contentItemData.TryGetValue(sitefinityFieldName, out object? fieldValue))
+                    {
+                        // For taxonomy fields, ensure we don't pass empty strings or null values
+                        if (kenticoFieldName.Equals("StateTaxonomy", StringComparison.OrdinalIgnoreCase))
+                        { 
+                            // Only add non-empty taxonomy data
+                            if (fieldValue != null && !string.IsNullOrWhiteSpace(fieldValue.ToString()) && !fieldValue.ToString()!.Equals("[]"))
+                            {
+                                newContentItemData[kenticoFieldName] = fieldValue;
+                            }
+                            else
+                            {
+                                // Log that we're skipping empty state taxonomy data
+                                logger.LogDebug("Skipping empty StateTaxonomy field value for content item.");
+                            }
+                        }
+                        else
+                        {
+                            newContentItemData[kenticoFieldName] = fieldValue;
+                        }
+                    }
                 }
 
-                // Map the field if it exists in the original data
-                if (contentItemData.TryGetValue(sitefinityFieldName, out object? fieldValue))
-                {
-                    newContentItemData[kenticoFieldName] = fieldValue;
-                }
+                logger.LogDebug("Applied field mappings for content type '{ContentType}'. Mapped {MappedFields} fields.",
+                    sitefinityTypeName, newContentItemData.Count);
             }
-
-            logger.LogDebug("Applied field mappings for content type '{ContentType}'. Mapped {MappedFields} fields.",
-                sitefinityTypeName, newContentItemData.Count);
         }
-
         return new ContentItemLanguageData
         {
             DisplayName = cultureSdkItem.Title.Length > 100 ? cultureSdkItem.Title[..100] : cultureSdkItem.Title,
