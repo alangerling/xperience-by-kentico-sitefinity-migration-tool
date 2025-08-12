@@ -78,6 +78,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
     }
 
     private readonly Dictionary<int, Guid> stateContentItemGuids = [];
+    private readonly Dictionary<Guid, Guid> magazineIssueContentItemGuids = [];
 
     private ContentItemSimplifiedModel? AdaptPage(ContentItem source, DataClassModel dataClassModel, IEnumerable<ContentItemLanguageData> languageData, ContentDependencies dependenciesModel, string finalClassName)
     {
@@ -92,7 +93,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
         // Add validation for ChannelName
         if (string.IsNullOrWhiteSpace(channel.ChannelName))
         {
-            logger.LogError("Channel found but ChannelName is null or empty for content item {ContentItemId} ({ContentItemTitle}). Channel GUID: {ChannelGuid}, Channel DisplayName: {ChannelDisplayName}. Skipping content item.", 
+            logger.LogError("Channel found but ChannelName is null or empty for content item {ContentItemId} ({ContentItemTitle}). Channel GUID: {ChannelGuid}, Channel DisplayName: {ChannelDisplayName}. Skipping content item.",
                 source.Id, source.Title, channel.ChannelGUID, channel.ChannelDisplayName);
             return default;
         }
@@ -177,6 +178,61 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
                 };
 
                 return stateContentItem;
+            }
+
+            // Special handling for Magazine content types to create parent-child relationships
+            if (source.TypeName == "MagazineIssue")
+            {
+                // Store the MagazineIssue GUID for later use by MagazineArticle and MagazineAuthor
+                // Use the source ID as the key since child items will reference it via ParentId
+                magazineIssueContentItemGuids[source.Id] = source.Id;
+
+                logger.LogDebug("Stored MagazineIssue '{MagazineIssueTitle}' with ID {MagazineIssueId}",
+                    source.Title, source.Id);
+            }
+
+            if (source.TypeName is "MagazineArticle" or "MagazineAuthor")
+            {
+                // Find the parent MagazineIssue using the ParentId field
+                Guid parentMagazineIssueGuid = GetParentMagazineIssueId(source);
+
+                if (parentMagazineIssueGuid != Guid.Empty &&
+                    magazineIssueContentItemGuids.ContainsKey(parentMagazineIssueGuid))
+                {
+                    logger.LogDebug("Found parent MagazineIssue with ID {ParentMagazineIssueId} for {ContentType} '{Title}'",
+                        parentMagazineIssueGuid, source.TypeName, source.Title);
+                }
+                else
+                {
+                    logger.LogWarning("Could not find parent MagazineIssue with ID {ParentMagazineIssueId} for {ContentType} '{Title}'. Will use listing page as parent.",
+                        parentMagazineIssueGuid, source.TypeName, source.Title);
+                    parentMagazineIssueGuid = Guid.Empty; // Reset to ensure fallback behavior
+                }
+
+                // Create the child page data with the MagazineIssue as parent (if found)
+                var magazineChildPageData = new PageDataModel
+                {
+                    ItemOrder = null,
+                    PageUrls = contentHelper.GetPageUrls(dependenciesModel, source, pageConfig.PageRootPath),
+                    PageGuid = source.Id,
+                    ParentGuid = parentMagazineIssueGuid != Guid.Empty ? parentMagazineIssueGuid : (dependenciesModel.WebPages?.Values
+                        .FirstOrDefault(x => x.PageData?.TreePath != null &&
+                            x.PageData.TreePath.Equals(pageConfig.PageRootPath, StringComparison.OrdinalIgnoreCase))?.ContentItemGUID ?? Guid.Empty),
+                    TreePath = pageConfig.PageRootPath + (source.ItemDefaultUrl ?? string.Empty)
+                };
+
+                var magazineChildContentItem = new ContentItemSimplifiedModel
+                {
+                    ContentItemGUID = source.Id,
+                    ContentTypeName = finalClassName,
+                    Name = contentHelper.GetName(source.Title, source.Id),
+                    LanguageData = languageData.ToList(),
+                    IsReusable = false,
+                    PageData = magazineChildPageData,
+                    ChannelName = channel.ChannelName
+                };
+
+                return magazineChildContentItem;
             }
 
             if (pageConfig.PageTemplateType == PageTemplateType.Listing)
@@ -270,4 +326,22 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
         IsReusable = true,
         ContentItemContentFolderGUID = folder.ContentFolderGUID,
     };
+
+    /// <summary>
+    /// Gets the parent MagazineIssue ID from a child content item (MagazineArticle or MagazineAuthor).
+    /// Uses the ParentId field directly.
+    /// </summary>
+    /// <param name="childItem">The child content item (MagazineArticle or MagazineAuthor)</param>
+    /// <returns>The ID of the parent magazine issue, or Guid.Empty if not found</returns>
+    private static Guid GetParentMagazineIssueId(ContentItem childItem)
+    {
+        // Use ParentId field directly - this is much more reliable than URL parsing
+        if (!string.IsNullOrEmpty(childItem.ParentId) && Guid.TryParse(childItem.ParentId, out Guid parentId))
+        {
+            return parentId;
+        }
+
+        // Return empty GUID if ParentId is not available or invalid
+        return Guid.Empty;
+    }
 }

@@ -137,8 +137,8 @@ internal class ExistingContentTypeMappingService : IExistingContentTypeMappingSe
             "MagazineIssue",
             new ExistingContentTypeInfo
             {
-                ClassGUID = Guid.Parse("EC493603-893E-44F4-A492-F76A36E3D804"), // ContentBase.ArticleDetail (using this as a fallback)
-                ClassName = "Efla.MagazineIssue",
+                ClassGUID = Guid.Parse("EC493603-893E-44F4-A492-F76A36E3D804"), // Elfa.MagazineIssue
+                ClassName = "Elfa.MagazineIssue",
                 ClassContentTypeType = "Website"
             }
         },
