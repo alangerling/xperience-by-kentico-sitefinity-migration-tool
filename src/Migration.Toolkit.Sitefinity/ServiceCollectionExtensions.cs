@@ -51,6 +51,7 @@ public static class ServiceCollectionExtensions
         services.AddTransient<IChannelImportService, ChannelImportService>();
         services.AddTransient<IContentLanguageImportService, ContentLanguageImportService>();
         services.AddTransient<IContentFolderImportService, ContentFolderImportService>();
+        services.AddSingleton<IExistingContentTypeMappingService, ExistingContentTypeMappingService>();
 
         // Folder Management
         services.AddScoped<ContentFolderManager>();

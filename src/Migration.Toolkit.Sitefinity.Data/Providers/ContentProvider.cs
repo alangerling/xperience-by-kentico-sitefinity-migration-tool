@@ -11,8 +11,12 @@ using Progress.Sitefinity.RestSdk;
 namespace Migration.Toolkit.Data.Providers;
 internal class ContentProvider(IRestClient restClient, ILogger<ContentProvider> logger, IDbContextFactory<SitefinityContext> sitefinityContext) : RestSdkBase(restClient), IContentProvider
 {
+
     private static readonly string[] allowedTypes = {
-        //"ElfaEvent",
+        "NewsItem",
+        "Event",
+        "ElfaEvent",
+        "Mlfi",
         "Program",
         "MagazineIssue",
         "MagazineAuthor",
@@ -22,6 +26,7 @@ internal class ContentProvider(IRestClient restClient, ILogger<ContentProvider> 
         "State",
         "CompendiumIssue",
         "CompendiumAuthor",
+        "FundingSourceProfile",
     };
 
     private IEnumerable<SitefinityVersionChange>? versions;

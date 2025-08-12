@@ -1,8 +1,7 @@
 Custom Instructions for GitHub Copilot
 These instructions provide guidelines for generating code in this repository. Follow them strictly to ensure consistency, quality, and maintainability.
 
-Adhere to SOLID Principles
-All generated code must follow the SOLID principles:
+Adhere to SOLID Principles: All generated code must follow the SOLID principles:
 
 Single Responsibility Principle (SRP): A class should have only one reason to change. Ensure each class or method handles a single responsibility.
 Open-Closed Principle (OCP): Classes should be open for extension but closed for modification. Use interfaces and abstractions to extend behavior without altering existing code.
@@ -31,7 +30,6 @@ Security: Follow secure coding practices to prevent vulnerabilities.
 If code violates any rule, suggest fixes or refactor to comply. Reference specific rule IDs in comments if relevant.
 
 Do not leave empty lines with whitespace characters only; just have the empty line without any whitespace characters.
-
 Do not leave whitespace characters at the end of the line; just have the line without any whitespace characters at the end.
 
 HTML Markup Guidelines
@@ -55,6 +53,8 @@ Adopt Project Standards
 Align generated code with standards used in the project:
 
 Review existing codebase for patterns in naming, architecture, and tooling before suggesting changes.
+Follow these guidelines when providing code: https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/overview?tabs=net-9
+
 Use project-specific configurations from files like .editorconfig, .csproj, or global.json.
 Ensure compatibility with the project's target framework (e.g., .NET 8 or later).
 Integrate with existing dependencies and avoid introducing breaking changes.
@@ -62,6 +62,7 @@ Assume most projects are hosted and deployed on Azure; prioritize Azure services
 Additional Best Practices for Efficiency, Accuracy, and Maintainability
 To make coding easier, more efficient, and accurate, incorporate these guidelines:
 use explicit type instead of var
+
 
 Unit Testing: Always suggest accompanying unit tests using frameworks like xUnit or NUnit. Aim for high code coverage and test edge cases.
 Documentation: Add XML comments for public members and inline comments for complex logic. Follow .NET documentation standards.

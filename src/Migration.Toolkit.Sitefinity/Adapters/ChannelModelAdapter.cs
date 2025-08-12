@@ -30,13 +30,31 @@ internal class ChannelModelAdapter(ILogger<ChannelModelAdapter> logger) : UmtAda
             yield break;
         }
 
+        // Validate site name before creating channel
+        if (string.IsNullOrWhiteSpace(source.Name))
+        {
+            logger.LogError("Site name is null or empty for site {SiteId}. Cannot create channel.", source.Id);
+            yield break;
+        }
+
+        string channelName = ValidationHelper.GetCodeName(source.Name).Replace(".", "-");
+
+        // Validate generated channel name
+        if (string.IsNullOrWhiteSpace(channelName))
+        {
+            logger.LogError("Generated channel name is null or empty for site '{SiteName}' (ID: {SiteId}). Cannot create channel.", source.Name, source.Id);
+            yield break;
+        }
+
         var channel = new ChannelModel
         {
             ChannelDisplayName = source.Name,
-            ChannelName = ValidationHelper.GetCodeName(source.Name).Replace(".", "-"),
+            ChannelName = channelName,
             ChannelGUID = source.Id,
             ChannelType = ChannelType.Website,
         };
+
+        logger.LogInformation("Created channel '{ChannelName}' for site '{SiteName}' (ID: {SiteId})", channelName, source.Name, source.Id);
 
         yield return channel;
 

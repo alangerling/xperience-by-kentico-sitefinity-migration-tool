@@ -21,5 +21,16 @@
         /// Kentico administrator user name to use as fallback when Sitefinity user is not found.
         /// </summary>
         public required string KenticoAdministratorUserName { get; set; }
+
+        /// <summary>
+        /// Optional domain to use for downloading media files. If not specified, uses SitefinitySiteDomain.
+        /// </summary>
+        public string? MediaDownloadDomain { get; set; }
+
+        /// <summary>
+        /// GUID of the Sitefinity admin user. Used to identify admin-submitted content vs member-submitted content.
+        /// Defaults to "6415B8CE-8072-4BCD-8E48-9D7178B826B7" if not specified.
+        /// </summary>
+        public string? SitefinityAdminUserGuid { get; set; }
     }
 }

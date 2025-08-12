@@ -52,13 +52,18 @@ internal class DataClassImportService(IImportService kenticoImportService,
     {
         var dataClasses = Get(dependencies);
 
-        // Filter to keep only ContentTypeChannelModel types, exclude all DataClassModel instances
+        // Filter to include all non-DataClassModel items and exclude DataClassModel items with ClassName starting with "elfa." or "contentbase."
         var filteredDataClasses = dataClasses
-            .Where(x => x is ContentTypeChannelModel)
+            .Where(x => x is not DataClassModel ||
+                       (x is DataClassModel dataClassModel &&
+                        !string.IsNullOrEmpty(dataClassModel.ClassName) &&
+                        !dataClassModel.ClassName.StartsWith("elfa.", StringComparison.OrdinalIgnoreCase) &&
+                        !dataClassModel.ClassName.StartsWith("contentbase.", StringComparison.OrdinalIgnoreCase)))
             .ToList();
 
         var importedModels = new Dictionary<Guid, IUmtModel>();
 
+        // Add all dataClasses to importedModels for content item dependencies
         foreach (var dataClass in dataClasses.OfType<DataClassModel>())
         {
             var guid = ValidationHelper.GetGuid(dataClass.ClassGUID, Guid.Empty);
@@ -71,6 +76,25 @@ internal class DataClassImportService(IImportService kenticoImportService,
             importedModels.Add(guid, dataClass);
         }
 
+        // For existing Kentico data classes (elfa.* and contentbase.*), we need to create placeholder DataClassModel entries
+        // so content items can find them in dependencies, but we don't import them since they already exist
+        var existingKenticoClasses = dataClasses.OfType<DataClassModel>()
+            .Where(dc => !string.IsNullOrEmpty(dc.ClassName) &&
+                        (dc.ClassName.StartsWith("elfa.", StringComparison.OrdinalIgnoreCase) ||
+                         dc.ClassName.StartsWith("contentbase.", StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+
+        foreach (var existingClass in existingKenticoClasses)
+        {
+            var guid = ValidationHelper.GetGuid(existingClass.ClassGUID, Guid.Empty);
+            if (!guid.Equals(Guid.Empty) && !importedModels.ContainsKey(guid))
+            {
+                // Add to dependencies so content items can reference these classes
+                importedModels.Add(guid, existingClass);
+            }
+        }
+
+        // But only import the filtered ones to Kentico to avoid duplicating existing classes
         return new SitefinityImportResult
         {
             ImportedModels = importedModels,

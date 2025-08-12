@@ -56,7 +56,6 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
 
     /// <summary>
     /// Content type mappings for custom Kentico content types
-    /// TODO: This should be moved to configuration or injected as a service
     /// </summary>
     private static readonly Dictionary<string, ContentTypeMapping> contentTypeMappings = new()
     {
@@ -124,59 +123,6 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
             }
         },
         {
-            "TaxManualItem",
-            new ContentTypeMapping
-            {
-                SitefinityTypeName = "TaxManualItem",
-                KenticoClassName = "Elfa.TaxManualItem",
-                FieldMappings = new Dictionary<string, string>
-                {
-                    { "PageTitle", "Title" },
-                    { "PageCopyHtml1", "FullText" },
-                    { "TaxManualCategory", "taxmanualcategories" },
-                    { "PublicationDate", "ReleaseDate" },
-                    { "RelatedFilesDownloads", "Documents" },
-                    { "PageImage", "Image" },
-                    { "JurisdictionState", "StateTaxonomy" }
-                }
-            }
-        },
-        {
-            "CompendiumIssue",
-            new ContentTypeMapping
-            {
-                SitefinityTypeName = "CompendiumIssue",
-                KenticoClassName = "Elfa.CompendiumIssue",
-                FieldMappings = new Dictionary<string, string>
-                {
-                    { "PageTitle", "Title" },
-                    { "PageCopyHtml1", "Description" },
-                    { "PageCopyHtml2", "Comments" },
-                    { "Question", "Question" },
-                    { "JurisdictionState", "StateTaxonomy" },
-                    { "PublicationAuthor", "LastReviewAuthor" },
-                    { "PublicationDate", "LastReviewDate" },
-                    { "PublicationAuthorPages", "Authors" }
-                }
-            }
-        },
-        {
-            "CompendiumAuthor",
-            new ContentTypeMapping
-            {
-                SitefinityTypeName = "CompendiumAuthor",
-                KenticoClassName = "ContentBase.PersonDetail",
-                FieldMappings = new Dictionary<string, string>
-                {
-                    { "PageTitle", "Title" },
-                    { "ContactPhoneOffice", "Phone" },
-                    { "ContactEmail", "Email" },
-                    { "PersonOrganization", "LawFirmName" },
-                    { "PersonWebsiteUrl", "LawFirmWebsite" },
-                }
-            }
-        },
-        {
             "MagazineIssue",
             new ContentTypeMapping
             {
@@ -231,17 +177,70 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                     { "PageDescription", "Summary" },
                     { "PageCopyHtml1", "Photo" },
                     { "ListingItemThumbnail", "Photo" },
-                    { "ArticleAuthor", "AuthorByline" },
-                    { "AuthorPages", "ArticleAuthor" },
+                    { "PublicationAuthor", "AuthorByline" },
+                    { "PublicationAuthorPages", "ArticleAuthor" },
                     { "PageImage", "HeroImage" },
                 }
             }
         },
         {
-            "Prorgram",
+            "TaxManualItem",
             new ContentTypeMapping
             {
-                SitefinityTypeName = "Prorgram",
+                SitefinityTypeName = "TaxManualItem",
+                KenticoClassName = "Elfa.TaxManualItem",
+                FieldMappings = new Dictionary<string, string>
+                {
+                    { "PageTitle", "Title" },
+                    { "PageCopyHtml1", "FullText" },
+                    { "TaxManualItemCategories", "taxmanualcategories" },
+                    { "PublicationDate", "ReleaseDate" },
+                    { "RelatedFilesDownloads", "Documents" },
+                    { "PageImage", "Image" },
+                    { "JurisdictionState", "State" }
+                }
+            }
+        },
+        {
+            "CompendiumIssue",
+            new ContentTypeMapping
+            {
+                SitefinityTypeName = "CompendiumIssue",
+                KenticoClassName = "Elfa.CompendiumIssue",
+                FieldMappings = new Dictionary<string, string>
+                {
+                    { "PageTitle", "Title" },
+                    { "PageCopyHtml1", "Description" },
+                    { "PageCopyHtml2", "Comments" },
+                    { "Question", "Question" },
+                    { "JurisdictionState", "State" },
+                    { "PublicationAuthor", "LastReviewAuthor" },
+                    { "PublicationDate", "LastReviewDate" },
+                    { "PublicationAuthorPages", "Authors" }
+                }
+            }
+        },
+        {
+            "CompendiumAuthor",
+            new ContentTypeMapping
+            {
+                SitefinityTypeName = "CompendiumAuthor",
+                KenticoClassName = "ContentBase.PersonDetail",
+                FieldMappings = new Dictionary<string, string>
+                {
+                    { "PageTitle", "Title" },
+                    { "ContactPhoneOffice", "Phone" },
+                    { "ContactEmail", "Email" },
+                    { "PersonOrganization", "LawFirmName" },
+                    { "PersonWebsiteUrl", "LawFirmWebsite" },
+                }
+            }
+        },
+        {
+            "Program",
+            new ContentTypeMapping
+            {
+                SitefinityTypeName = "Program",
                 KenticoClassName = "Elfa.EventProgram",
                 FieldMappings = new Dictionary<string, string>
                 {
@@ -249,6 +248,144 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                     { "ProgramStartTime", "StartDate" },
                     { "ProgramEndTime", "StartDate" },
                     { "ProgramSummary", "Summary" },
+                }
+            }
+        },
+        {
+            "Mlfi",
+            new ContentTypeMapping
+            {
+                SitefinityTypeName = "Mlfi",
+                KenticoClassName = "Elfa.Report",
+                FieldMappings = new Dictionary<string, string>
+                {
+                    { "PageTitle", "Title" },
+                    { "PageCopyHtml1", "Content" },
+                    { "SeoFacebookImage", "OpenGraphImage" },
+                }
+            }
+        },
+        {
+            "ElfaEvent",
+            new ContentTypeMapping
+            {
+                SitefinityTypeName = "ElfaEvent",
+                KenticoClassName = "ContentBase.EventDetail",
+                FieldMappings = new Dictionary<string, string>
+                {
+                    { "PageTitle", "Title" },
+                    { "EventExternalEventId", "CVDataEventId" },
+                    { "EventEventPowerId", "EventPowerId" },
+                    { "EventEventPowerKey", "EventPowerKey" },
+                    { "EventRegistrationIsOpen", "RegistrationOpen" },
+                    { "EventStartDate", "StartDate" },
+                    { "EventEndDate", "EndDate" },
+                    { "PageCopyHtml1", "Content" },
+                    { "LocationName", "LocationName" },
+                    { "LocationAddress1", "LocationAddress1" },
+                    { "LocationAddress2", "LocationAddress2" },
+                    { "LocationCity", "LocationCity" },
+                    { "LocationState", "LocationState" },
+                    { "LocationZip", "LocationPostalCode" },
+                    { "EventSponsorCopyHtml", "SponsorContent" },
+                    { "EventLocationCopyHtml", "LocationContent" },
+                    { "EventScheduleCopyHtml", "ScheduleContent" },
+                    { "EventSpeakerCopyHtml", "SpeakerContent" },
+                    { "EventPolicyCopyHtml", "PolicyContent" },
+                    { "EventExhibitorCopyHtml", "ExhibitorContent" },
+                    { "PageImage", "Image" },
+                    { "EventRegistrationLink", "CvEventURL" },
+                }
+            }
+        },
+        {
+            "Event",
+            new ContentTypeMapping
+            {
+                SitefinityTypeName = "Event",
+                KenticoClassName = "ContentBase.EventDetail",
+                FieldMappings = new Dictionary<string, string>
+                {
+                    { "PageTitle", "Title" },
+                    { "EventStartDate", "EventStart" },
+                    { "EventEndDate", "EventEnd" },
+                    { "ContactEmail", "ContactEmail" },
+                    { "ContactWebUrl", "ContactWeb" },
+                    { "LocationAddress1", "Street" },
+                    { "LocationCity", "City" },
+                    { "LocationState", "State" },
+                    { "ContactName", "ContactName" },
+                    { "ContactPhoneCell", "ContactCell" },
+                    { "ContactPhoneOffice", "ContactPhone" },
+                    { "PageCopyHtml1", "Content" },
+                    { "PageDescription", "Summary" },
+                    { "ShowEventTime", "AllDayEvent" },
+                    { "AdditionalCategories", "Category" },
+                    { "LocationName", "LocationName" },
+                    { "PageImage", "Image" },
+                    { "EventRegistrationLink", "CvEventURL" },
+                }
+            }
+        },
+        {
+            "NewsItem",
+            new ContentTypeMapping
+            {
+                SitefinityTypeName = "NewsItem",
+                KenticoClassName = "ContentBase.ArticleDetail",
+                FieldMappings = new Dictionary<string, string>
+                {
+                    { "PageTitle", "Title" },
+                    { "PageDescription", "Summary" },
+                    { "PageCopyHtml1", "Content" },
+                    { "PublicationAuthor", "Author" },
+                    { "PublicationDate", "PublicationDate" },
+                    { "SeoDisallowRobots", "IncludeInSitemap" },
+                    { "AdditionalCategories", "Category" },
+                    { "PageImage", "Image" },
+                }
+            }
+        },
+        {
+            "FundingSourceProfile",
+            new ContentTypeMapping
+            {
+                SitefinityTypeName = "FundingSourceProfile",
+                KenticoClassName = "Elfa.FundingSourceProfile",
+                FieldMappings = new Dictionary<string, string>
+                {
+                    { "PageTitle", "Title" },
+                    { "FundSrcExternalId", "OrgId" },
+                    { "PublicationDate", "LastUpdatedDate" },
+                    { "FundSrcListingExpiration", "ListingExpirationDate" },
+                    { "FundSrcCompanyType", "CvCompanyType" },
+                    { "FundSrcExternalLogoId", "LogoId" },
+                    { "FundSrcLeaseStructure", "LeaseStructure" },
+                    { "FundSrcFundingProgram", "FundingProgram" },
+                    { "FundSrcBusinessCouncils", "ElfaBusinessCouncils" },
+                    { "FundSrcAnnualVolume", "AnnualVolume" },
+                    { "FundSrcFundingCompanyType", "FundingSourceCompanyTypes" },
+                    { "FundSrcBusinessFocus", "CoreBusinessFocus" },
+                    { "FundSrcType", "FundingSourceTypes" },
+                    { "FundSrcTransactionHighest", "IndTransactionHighest" },
+                    { "FundSrcTransactionAverage", "IndTransactionAverage" },
+                    { "FundSrcTransactionLowest", "IndTransactionLowest" },
+                    { "FundSrcLeaseTermLongest", "LeaseTermLongest" },
+                    { "FundSrcLeaseTermAverage", "LeaseTermAverage" },
+                    { "FundSrcLeaseTermShortest", "LeaseTermShortest" },
+                    { "FundSrcOriginatesPaper", "OriginatesPaper" },
+                    { "FundSrcSyndicateSellPaper", "SyndicateSellPaper" },
+                    { "FundSrcSyndicatePaperDetails", "SyndicatePaperDetails" },
+                    { "FundSrcEquipmentTypes", "EquipmentTypes" },
+                    { "FundSrcEquipmentTypesPreferred", "EquipmentTypesPreferred" },
+                    { "FundSrcSyndicationsPortfolios", "SyndicationsPortfolios" },
+                    { "FundSrcCreditCriteria", "CreditCriteria" },
+                    { "FundSrcCreditCriteriaOther", "CreditCriteriaOther" },
+                    { "FundSrcLenderType", "LenderType" },
+                    { "FundSrcAcceptsSoftAssets", "AcceptsSoftAssets" },
+                    { "FundSrcSoftAssetDescription", "SoftAssetDescription" },
+                    { "FundSrcOtherRequirements", "OtherRequirements" },
+                    { "FundSrcStartOfFiscalYear", "StartOfFiscalYear" },
                 }
             }
         }
@@ -374,10 +511,35 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
 
         var types = typeProvider.GetAllTypes();
 
-        var type = types.FirstOrDefault(x => x.Id == dataClassModel.ClassGUID);
+        // For existing content types (like ContentBase.EventDetail), we need to find the original Sitefinity type
+        // instead of trying to find a type with the existing Kentico content type GUID
+        SitefinityType? type = null;
+
+        // Check if this is a ContentItem with source data that has the original Sitefinity type information
+        if (cultureSdkItem is ContentItem contentItem && !string.IsNullOrEmpty(contentItem.TypeName))
+        {
+            // Use the original Sitefinity DataClassGuid to find the type
+            type = types.FirstOrDefault(x => x.Id == contentItem.DataClassGuid);
+
+            if (type == null)
+            {
+                logger.LogDebug("Could not find Sitefinity type for content item using DataClassGuid {DataClassGuid}. Attempting to find by type name {TypeName}.",
+                    contentItem.DataClassGuid, contentItem.TypeName);
+
+                // Fallback: try to find by type name
+                string typeNameWithoutNamespace = StripNamespace(contentItem.TypeName);
+                type = types.FirstOrDefault(x => x.Name != null && x.Name.Equals(typeNameWithoutNamespace, StringComparison.OrdinalIgnoreCase));
+            }
+        }
+        else
+        {
+            // Fallback to original behavior for other cases
+            type = types.FirstOrDefault(x => x.Id == dataClassModel.ClassGUID);
+        }
 
         if (type == null || type.Fields == null)
         {
+            logger.LogWarning("Could not find Sitefinity type definition for content item {ItemUrl}. Cannot extract field data.", cultureSdkItem.UrlName);
             return default;
         }
 
@@ -403,12 +565,6 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                 if (cultureSdkItem is SdkItem sdkItem)
                 {
                     object? data = fieldType.GetData(sdkItem, field.Name);
-
-                    // Log information about StateTaxonomyField processing
-                    if (fieldType is StateTaxonomyFieldType)
-                    {
-                        logger.LogDebug("Processing StateTaxonomyField '{FieldName}' with data: {Data}", field.Name, data);
-                    }
 
                     // If data is null or empty string, add directly and skip further processing
                     if (data == null || (data is string str && string.IsNullOrEmpty(str)))
@@ -463,12 +619,24 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
         newContentItemData = contentItemData;
 
         // Apply content type mappings if they exist
-        string? sitefinityTypeName = dataClassModel.ClassName;
+        // For existing content types, we need to use the original Sitefinity type name instead of the Kentico class name
+        string? sitefinityTypeName = null;
+
+        if (cultureSdkItem is ContentItem sourceContentItem && !string.IsNullOrEmpty(sourceContentItem.TypeName))
+        {
+            // Use the original Sitefinity type name for mapping lookup
+            sitefinityTypeName = sourceContentItem.TypeName;
+        }
+        else
+        {
+            // Fallback to using the dataClassModel class name for other cases
+            sitefinityTypeName = dataClassModel.ClassName;
+        }
+
         if (!string.IsNullOrEmpty(sitefinityTypeName))
         {
             // Strip namespace from sitefinityTypeName before lookup
             string typeNameWithoutNamespace = StripNamespace(sitefinityTypeName);
-
             if (contentTypeMappings.TryGetValue(typeNameWithoutNamespace, out var mapping))
             {
                 newContentItemData = []; // Reset for mapped content types
@@ -485,32 +653,205 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                         continue;
                     }
 
-                    // Map the field if it exists in the original data
-                    if (contentItemData.TryGetValue(sitefinityFieldName, out object? fieldValue))
+                    // Special handling for MagazineArticle PageTitle to append Subhead
+                    if (typeNameWithoutNamespace == "MagazineArticle" && sitefinityFieldName == "Title")
                     {
-                        // For taxonomy fields, ensure we don't pass empty strings or null values
-                        if (kenticoFieldName.Equals("StateTaxonomy", StringComparison.OrdinalIgnoreCase))
-                        { 
-                            // Only add non-empty taxonomy data
-                            if (fieldValue != null && !string.IsNullOrWhiteSpace(fieldValue.ToString()) && !fieldValue.ToString()!.Equals("[]"))
+                        string titleValue = string.Empty;
+
+                        // Get PageTitle value
+                        if (contentItemData.TryGetValue("Title", out object? pageTitleValue) && pageTitleValue != null)
+                        {
+                            titleValue = pageTitleValue.ToString() ?? string.Empty;
+                        }
+
+                        // Get Subhead value and append if it exists
+                        if (contentItemData.TryGetValue("Subhead", out object? subheadValue) &&
+                            subheadValue != null &&
+                            !string.IsNullOrWhiteSpace(subheadValue.ToString()))
+                        {
+                            string subheadText = subheadValue.ToString()!;
+                            titleValue = string.IsNullOrWhiteSpace(titleValue)
+                                ? subheadText
+                                : $"{titleValue}: {subheadText}";
+                        }
+
+                        // Only add if we have a title value
+                        if (!string.IsNullOrWhiteSpace(titleValue))
+                        {
+                            newContentItemData[kenticoFieldName] = titleValue;
+                        }
+
+                        continue; // Skip the normal field mapping logic for this field
+                    }
+
+                    // Special handling for ElfaEvent, Event, and NewsItem to combine Category and Tags into AdditionalCategories
+                    if ((typeNameWithoutNamespace == "ElfaEvent" || typeNameWithoutNamespace == "Event" || typeNameWithoutNamespace == "NewsItem") && sitefinityFieldName == "Category")
+                    {
+                        string combinedCategories = string.Empty;
+
+                        // Get Category value
+                        if (contentItemData.TryGetValue("Category", out object? categoryValue) && categoryValue != null)
+                        {
+                            combinedCategories = categoryValue.ToString() ?? string.Empty;
+                        }
+
+                        // Get Tags value and append if it exists
+                        if (contentItemData.TryGetValue("Tags", out object? tagsValue) &&
+                            tagsValue != null &&
+                            !string.IsNullOrWhiteSpace(tagsValue.ToString()) &&
+                            !tagsValue.ToString()!.Equals("[]"))
+                        {
+                            string tagsText = tagsValue.ToString()!;
+
+                            // If we have both Category and Tags, we need to merge the JSON arrays
+                            if (!string.IsNullOrWhiteSpace(combinedCategories) && !combinedCategories.Equals("[]"))
                             {
-                                newContentItemData[kenticoFieldName] = fieldValue;
+                                combinedCategories = MergeTaxonomyArrays(combinedCategories, tagsText);
                             }
                             else
                             {
-                                // Log that we're skipping empty state taxonomy data
-                                logger.LogDebug("Skipping empty StateTaxonomy field value for content item.");
+                                // If no Category data, just use Tags
+                                combinedCategories = tagsText;
                             }
                         }
+
+                        // Only add if we have category/tag data
+                        if (!string.IsNullOrWhiteSpace(combinedCategories) && !combinedCategories.Equals("[]"))
+                        {
+                            newContentItemData[kenticoFieldName] = combinedCategories;
+                        }
+
+                        continue; // Skip the normal field mapping logic for this field
+                    }
+
+                    // Special handling for NewsItem SeoDisallowRobots to IncludeInSitemap (invert the boolean)
+                    if (typeNameWithoutNamespace == "NewsItem" && sitefinityFieldName == "IncludeInSitemap")
+                    {
+                        if (contentItemData.TryGetValue("SeoDisallowRobots", out object? seoDisallowRobotsValue) && seoDisallowRobotsValue != null)
+                        {
+                            // Invert the SeoDisallowRobots value for IncludeInSitemap
+                            bool disallowRobots = ValidationHelper.GetBoolean(seoDisallowRobotsValue, false);
+                            bool includeInSitemap = !disallowRobots;
+                            newContentItemData[kenticoFieldName] = includeInSitemap;
+                        }
                         else
+                        {
+                            // Default to true if SeoDisallowRobots is not set
+                            newContentItemData[kenticoFieldName] = true;
+                        }
+
+                        continue; // Skip the normal field mapping logic for this field
+                    }
+
+                    // Special handling for TaxManualItem PageImage to take only the first image from the array
+                    if (typeNameWithoutNamespace == "TaxManualItem" && sitefinityFieldName == "Image")
+                    {
+                        if (contentItemData.TryGetValue("PageImage", out object? pageImageValue) && pageImageValue != null)
+                        {
+                            string pageImageJson = pageImageValue.ToString() ?? string.Empty;
+
+                            // Try to parse as JSON array and take only the first item
+                            try
+                            {
+                                var imageArray = JsonSerializer.Deserialize<List<ContentRelatedItem>>(pageImageJson);
+                                if (imageArray != null && imageArray.Count > 0)
+                                {
+                                    // Create a new array with only the first image
+                                    var firstImageArray = new List<ContentRelatedItem> { imageArray[0] };
+                                    newContentItemData[kenticoFieldName] = JsonSerializer.Serialize(firstImageArray);
+                                    logger.LogDebug("TaxManualItem PageImage: Selected first image from array of {Count} images", imageArray.Count);
+                                }
+                                else if (!string.IsNullOrWhiteSpace(pageImageJson) && !pageImageJson.Equals("[]"))
+                                {
+                                    // If it's not empty but couldn't parse as array, use as is
+                                    newContentItemData[kenticoFieldName] = pageImageJson;
+                                }
+                            }
+                            catch (JsonException)
+                            {
+                                // If JSON parsing fails, use the original value
+                                if (!string.IsNullOrWhiteSpace(pageImageJson) && !pageImageJson.Equals("[]"))
+                                {
+                                    newContentItemData[kenticoFieldName] = pageImageJson;
+                                }
+                            }
+                        }
+
+                        continue; // Skip the normal field mapping logic for this field
+                    }
+
+                    // Special handling for ElfaEvent address fields to extract components from linked Address object
+                    if (typeNameWithoutNamespace == "ElfaEvent" && (
+                        kenticoFieldName == "LocationAddress1" ||
+                        kenticoFieldName == "LocationAddress2" ||
+                        kenticoFieldName == "LocationCity" ||
+                        kenticoFieldName == "LocationState" ||
+                        kenticoFieldName == "LocationZip"))
+                    {
+                        if (contentItemData.TryGetValue("Address", out object? addressValue) && addressValue != null)
+                        {
+                            try
+                            {
+                                // Try to parse the Address object from JSON
+                                var addressData = JsonSerializer.Deserialize<JsonElement>(addressValue.ToString() ?? "");
+
+                                if (addressData.ValueKind == JsonValueKind.Object)
+                                {
+                                    string? extractedValue = kenticoFieldName switch
+                                    {
+                                        "LocationAddress1" => addressData.TryGetProperty("Street", out var street) ? street.GetString() : null,
+                                        "LocationAddress2" => null, // Address2 is typically not in the basic address object
+                                        "LocationCity" => addressData.TryGetProperty("City", out var city) ? city.GetString() : null,
+                                        "LocationState" => addressData.TryGetProperty("StateCode", out var state) ? state.GetString() : null,
+                                        "LocationZip" => addressData.TryGetProperty("Zip", out var zip) ? zip.GetString() : null,
+                                        _ => null
+                                    };
+
+                                    if (!string.IsNullOrWhiteSpace(extractedValue))
+                                    {
+                                        newContentItemData[kenticoFieldName] = extractedValue;
+                                        logger.LogDebug("ElfaEvent Address: Extracted {Field} = {Value}", kenticoFieldName, extractedValue);
+                                    }
+                                }
+                            }
+                            catch (JsonException ex)
+                            {
+                                logger.LogWarning("Failed to parse Address object for ElfaEvent field {Field}: {Error}", kenticoFieldName, ex.Message);
+                            }
+                        }
+
+                        continue; // Skip the normal field mapping logic for this field
+                    }
+
+                    // Special handling for Event ShowEventTime to AllDayEvent (invert the boolean)
+                    if (typeNameWithoutNamespace == "Event" && sitefinityFieldName == "AllDayEvent")
+                    {
+                        if (contentItemData.TryGetValue("ShowEventTime", out object? showEventTimeValue) && showEventTimeValue != null)
+                        {
+                            // Invert the ShowEventTime value for AllDayEvent
+                            bool showEventTime = ValidationHelper.GetBoolean(showEventTimeValue, false);
+                            bool allDayEvent = !showEventTime;
+                            newContentItemData[kenticoFieldName] = allDayEvent;
+                        }
+                        else
+                        {
+                            // Default to false if ShowEventTime is not set (meaning it's not an all-day event)
+                            newContentItemData[kenticoFieldName] = false;
+                        }
+
+                        continue; // Skip the normal field mapping logic for this field
+                    }
+
+                    // Map the field if it exists in the original data
+                    if (contentItemData.TryGetValue(sitefinityFieldName, out object? fieldValue))
+                    {
+                        // Only add non-empty taxonomy data
+                        if (fieldValue != null && !string.IsNullOrWhiteSpace(fieldValue.ToString()) && !fieldValue.ToString()!.Equals("[]"))
                         {
                             newContentItemData[kenticoFieldName] = fieldValue;
                         }
                     }
                 }
-
-                logger.LogDebug("Applied field mappings for content type '{ContentType}'. Mapped {MappedFields} fields.",
-                    sitefinityTypeName, newContentItemData.Count);
             }
         }
         return new ContentItemLanguageData
@@ -718,18 +1059,22 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
             return url;
         }
 
-        // Only process relative URLs or URLs from the configured domain
+        // Only process relative URLs or URLs from the configured domain or production domain
         if (Uri.TryCreate(url, UriKind.Absolute, out var absoluteUri))
         {
             string? configuredDomain = dataConfiguration.SitefinitySiteDomain?.TrimEnd('/');
+            string prodDomain = "www.elfaonline.org";
+            string prodDomainWithoutWww = "elfaonline.org";
 
             // Extract only the host (e.g., "www.leasefoundation.org")
             string urlHost = absoluteUri.Host;
 
-            // Check if it does NOT match the configured domain
-            if (!urlHost.Equals(configuredDomain, StringComparison.OrdinalIgnoreCase))
+            // Check if it does NOT match the configured domain OR the production domains
+            if (!urlHost.Equals(configuredDomain, StringComparison.OrdinalIgnoreCase) &&
+                !urlHost.Equals(prodDomain, StringComparison.OrdinalIgnoreCase) &&
+                !urlHost.Equals(prodDomainWithoutWww, StringComparison.OrdinalIgnoreCase))
             {
-                logger.LogDebug("URL {Url} does not belong to configured domain {Domain}. Skipping processing.", url, configuredDomain);
+                logger.LogDebug("URL {Url} does not belong to configured domain {Domain} or production domains. Skipping processing.", url, configuredDomain);
                 return url;
             }
         }
@@ -822,6 +1167,35 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
         // Remove SelectedVideo check since videos now use SelectedFile
 
         return null;
+    }
+
+    /// <summary>
+    /// Merges two taxonomy JSON arrays into a single array, removing duplicates based on Identifier
+    /// </summary>
+    /// <param name="array1">First JSON array of taxonomy items</param>
+    /// <param name="array2">Second JSON array of taxonomy items</param>
+    /// <returns>Merged JSON array with no duplicate Identifiers</returns>
+    private static string MergeTaxonomyArrays(string array1, string array2)
+    {
+        try
+        {
+            var items1 = JsonSerializer.Deserialize<List<ContentRelatedItem>>(array1) ?? [];
+            var items2 = JsonSerializer.Deserialize<List<ContentRelatedItem>>(array2) ?? [];
+
+            // Combine and remove duplicates based on Identifier
+            var mergedItems = items1
+                .Concat(items2)
+                .GroupBy(item => item.Identifier)
+                .Select(group => group.First())
+                .ToList();
+
+            return JsonSerializer.Serialize(mergedItems);
+        }
+        catch (JsonException)
+        {
+            // If JSON parsing fails, return the first array as fallback
+            return array1;
+        }
     }
 
     private static ContentItemSimplifiedModel? FindMediaFileByUrl(IMediaDependencies mediaDependencies, string targetUrl) => mediaDependencies.MediaFiles.Values.FirstOrDefault(contentItem =>

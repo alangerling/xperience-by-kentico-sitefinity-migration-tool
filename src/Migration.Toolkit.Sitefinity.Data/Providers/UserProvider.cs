@@ -10,8 +10,13 @@ internal class UserProvider(IDbContextFactory<SitefinityContext> sitefinityConte
     public IEnumerable<User> GetUsers()
     {
         using var context = sitefinityContext.CreateDbContext();
-        // Only return backend users
-        var users = context.Users.Where(u => u.IsBackendUser).ToList();
+
+        // Filter to only include backend users (exclude member/frontend users)
+        // Backend users are administrators and content creators, while frontend users are website members
+        var users = context.Users
+            .Where(u => u.IsBackendUser) // Only include backend users, exclude member submissions
+            .ToList();
+
         return users;
     }
 }

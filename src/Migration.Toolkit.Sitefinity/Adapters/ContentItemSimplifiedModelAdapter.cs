@@ -19,7 +19,8 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
                                                  IUserHelper userHelper,
                                                  SitefinityImportConfiguration configuration,
                                                  SitefinityDataConfiguration dataConfiguration,
-                                                 ContentFolderManager contentFolderManager) : UmtAdapterBaseWithDependencies<ContentItem, ContentDependencies, ContentItemSimplifiedModel>(logger)
+                                                 ContentFolderManager contentFolderManager,
+                                                 IExistingContentTypeMappingService existingContentTypeMappingService) : UmtAdapterBaseWithDependencies<ContentItem, ContentDependencies, ContentItemSimplifiedModel>(logger)
 {
     private readonly Dictionary<Guid, ContentItemSimplifiedModel> detailContentItems = [];
 
@@ -33,52 +34,71 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
             return default;
         }
 
-        if (!dependenciesModel.DataClasses.TryGetValue(source.DataClassGuid, out var dataClassModel))
+        // Check if there's an existing content type mapping for this Sitefinity type
+        var existingContentType = existingContentTypeMappingService.GetExistingContentType(source.TypeName);
+
+        if (existingContentType == null)
         {
-            logger.LogWarning("Data class with ClassGuid of {DataClassGuid} not found. Skipping content item {ItemDefaultUrl}.", source.DataClassGuid, source.ItemDefaultUrl);
+            logger.LogDebug("No existing content type mapping found for Sitefinity type '{SitefinityType}'. Skipping content item {ItemId} ({ItemTitle}).",
+                source.TypeName, source.Id, source.Title);
             return default;
         }
 
+        // Use existing Kentico content type
+        var targetDataClass = existingContentTypeMappingService.CreateDataClassModelFromExisting(existingContentType);
+        string finalClassName = existingContentType.ClassName;
+
+        logger.LogInformation("Using existing Kentico content type for Sitefinity type '{SitefinityType}': '{KenticoClass}' (GUID: {ClassGuid}) - ContentTypeType: {ContentTypeType}",
+            source.TypeName, existingContentType.ClassName, existingContentType.ClassGUID, existingContentType.ClassContentTypeType);
+
         var users = dependenciesModel.Users;
         users.TryGetValue(ValidationHelper.GetGuid(source.Owner, Guid.Empty), out var createdByUser);
-        var languageData = contentHelper.GetLanguageData(dependenciesModel, source, dataClassModel, createdByUser);
+        var languageData = contentHelper.GetLanguageData(dependenciesModel, source, targetDataClass, createdByUser);
 
-        // Get the mapped Kentico class name based on Sitefinity type
-        string mappedClassName = contentHelper.GetMappedClassName(source.TypeName, dataClassModel.ClassName);
-        logger.LogWarning("mappedClassName {mappedClassName} source.TypeName {source.TypeName} dataClassModel.ClassName {dataClassModel.ClassName}.", mappedClassName, source.TypeName, dataClassModel.ClassName);
-
-        if (dataClassModel.ClassContentTypeType == null)
+        if (targetDataClass.ClassContentTypeType == null)
         {
-            return AdaptReusable(source, languageData, rootFolder, mappedClassName);
+            logger.LogDebug("Content type type is null for {ItemId} ({ItemTitle}). Using AdaptReusable with root folder.", source.Id, source.Title);
+            return AdaptReusable(source, languageData, rootFolder, finalClassName);
         }
 
-        if (dataClassModel.ClassContentTypeType.Equals("Reusable") || dataClassModel.ClassName == $"{configuration.SitefinityCodeNamePrefix}.Program")
+        if (targetDataClass.ClassContentTypeType.Equals("Reusable"))
         {
-            return AdaptReusable(source, languageData, new ContentFolderInfo { ContentFolderGUID = dataClassModel.ClassGUID ?? rootFolder.ContentFolderGUID }, mappedClassName);
+            logger.LogDebug("Content type is Reusable for {ItemId} ({ItemTitle}). Using AdaptReusable.", source.Id, source.Title);
+            return AdaptReusable(source, languageData, new ContentFolderInfo { ContentFolderGUID = targetDataClass.ClassGUID ?? rootFolder.ContentFolderGUID }, finalClassName);
         }
 
-        if (dataClassModel.ClassContentTypeType.Equals("Website"))
+        if (targetDataClass.ClassContentTypeType.Equals("Website"))
         {
-            return AdaptPage(source, dataClassModel, languageData, dependenciesModel, mappedClassName);
+            logger.LogDebug("Content type is Website for {ItemId} ({ItemTitle}). Using AdaptPage.", source.Id, source.Title);
+            return AdaptPage(source, targetDataClass, languageData, dependenciesModel, finalClassName);
         }
 
-        return AdaptReusable(source, languageData, rootFolder, mappedClassName);
+        logger.LogDebug("Content type type '{ContentTypeType}' not recognized for {ItemId} ({ItemTitle}). Using AdaptReusable with root folder.", targetDataClass.ClassContentTypeType, source.Id, source.Title);
+        return AdaptReusable(source, languageData, rootFolder, finalClassName);
     }
 
     private readonly Dictionary<int, Guid> stateContentItemGuids = [];
 
-    private ContentItemSimplifiedModel? AdaptPage(ContentItem source, DataClassModel dataClassModel, IEnumerable<ContentItemLanguageData> languageData, ContentDependencies dependenciesModel, string mappedClassName)
+    private ContentItemSimplifiedModel? AdaptPage(ContentItem source, DataClassModel dataClassModel, IEnumerable<ContentItemLanguageData> languageData, ContentDependencies dependenciesModel, string finalClassName)
     {
         var channel = contentHelper.GetCurrentChannel(dependenciesModel.Channels.Values);
 
         if (channel == null)
         {
-            logger.LogWarning("Channel not found for domain: {Domain}. Skipping content item {ItemDefaultUrl}.", dataConfiguration.SitefinitySiteDomain, source.UrlName);
+            logger.LogWarning("Channel not found for domain: {Domain}. Skipping content item {ContentItemDefaultUrl}.", dataConfiguration.SitefinitySiteDomain, source.UrlName);
+            return default;
+        }
+
+        // Add validation for ChannelName
+        if (string.IsNullOrWhiteSpace(channel.ChannelName))
+        {
+            logger.LogError("Channel found but ChannelName is null or empty for content item {ContentItemId} ({ContentItemTitle}). Channel GUID: {ChannelGuid}, Channel DisplayName: {ChannelDisplayName}. Skipping content item.", 
+                source.Id, source.Title, channel.ChannelGUID, channel.ChannelDisplayName);
             return default;
         }
 
         // Use exact match for TypeName instead of Contains
-        var pageConfigs = configuration.PageContentTypes?.Where(x => dataClassModel.ClassName != null && dataClassModel.ClassName.EndsWith("." + x.TypeName));
+        var pageConfigs = configuration.PageContentTypes?.Where(x => source.TypeName != null && source.TypeName.Equals(x.TypeName, StringComparison.InvariantCultureIgnoreCase));
 
         if (pageConfigs == null || !pageConfigs.Any())
         {
@@ -105,7 +125,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
             var noPageConfigPageContentItem = new ContentItemSimplifiedModel
             {
                 ContentItemGUID = source.Id,
-                ContentTypeName = mappedClassName, // Use mapped class name instead of dataClassModel.ClassName
+                ContentTypeName = finalClassName, // Use finalClassName instead of mappedClassName
                 Name = contentHelper.GetName(source.Title, source.Id),
                 LanguageData = languageData.ToList(),
                 IsReusable = false,
@@ -120,14 +140,14 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
         {
             string codeNamePrefix = configuration.SitefinityCodeNamePrefix;
 
-            if (dataClassModel.ClassName == $"{codeNamePrefix}.State")
+            if (source.TypeName == $"State")
             {
                 string[] segments = (source.ItemDefaultUrl ?? string.Empty).Split('/', StringSplitOptions.RemoveEmptyEntries);
                 string stateName = segments.Length > 0 ? segments[0] : string.Empty;
                 stateContentItemGuids[stateName.GetHashCode()] = source.Id;
             }
 
-            if (dataClassModel.ClassName == $"{codeNamePrefix}.TaxManualItem" || dataClassModel.ClassName == $"{codeNamePrefix}.CompendiumIssue")
+            if (source.TypeName is "TaxManualItem" or "CompendiumIssue")
             {
                 // Extract the state name as the first folder segment from ItemDefaultUrl
                 string[] segments = (source.ItemDefaultUrl ?? string.Empty).Split('/', StringSplitOptions.RemoveEmptyEntries);
@@ -148,7 +168,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
                 var stateContentItem = new ContentItemSimplifiedModel
                 {
                     ContentItemGUID = source.Id,
-                    ContentTypeName = mappedClassName, // Use mapped class name instead of dataClassModel.ClassName
+                    ContentTypeName = finalClassName, // Use finalClassName instead of mappedClassName
                     Name = contentHelper.GetName(source.Title, source.Id),
                     LanguageData = languageData.ToList(),
                     IsReusable = false,
@@ -182,7 +202,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
                 var listingChildPageContentItem = new ContentItemSimplifiedModel
                 {
                     ContentItemGUID = source.Id,
-                    ContentTypeName = mappedClassName, // Use mapped class name instead of dataClassModel.ClassName
+                    ContentTypeName = finalClassName, // Use finalClassName instead of mappedClassName
                     Name = contentHelper.GetName(source.Title, source.Id),
                     LanguageData = languageData.ToList(),
                     IsReusable = false,
@@ -209,7 +229,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
                     return default;
                 }
 
-                detailPage.ContentTypeName = mappedClassName; // Use mapped class name instead of dataClassModel.ClassName
+                detailPage.ContentTypeName = finalClassName; // Use finalClassName instead of mappedClassName
                 detailPage.LanguageData = languageData.ToList();
 
                 detailContentItems.Add(source.Id, detailPage);
@@ -230,7 +250,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
         var pageContentItem = new ContentItemSimplifiedModel
         {
             ContentItemGUID = source.Id,
-            ContentTypeName = mappedClassName, // Use mapped class name instead of dataClassModel.ClassName
+            ContentTypeName = finalClassName, // Use finalClassName instead of mappedClassName
             Name = contentHelper.GetName(source.Title, source.Id),
             LanguageData = languageData.ToList(),
             IsReusable = false,
@@ -241,10 +261,10 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
         return pageContentItem;
     }
 
-    private ContentItemSimplifiedModel AdaptReusable(ContentItem source, IEnumerable<ContentItemLanguageData> languageData, ContentFolderInfo folder, string mappedClassName) => new()
+    private ContentItemSimplifiedModel AdaptReusable(ContentItem source, IEnumerable<ContentItemLanguageData> languageData, ContentFolderInfo folder, string finalClassName) => new()
     {
         ContentItemGUID = source.Id,
-        ContentTypeName = mappedClassName, // Use mapped class name instead of dataClassModel.ClassName
+        ContentTypeName = finalClassName, // Use finalClassName instead of mappedClassName
         Name = contentHelper.GetName(source.Title, source.Id),
         LanguageData = languageData.ToList(),
         IsReusable = true,

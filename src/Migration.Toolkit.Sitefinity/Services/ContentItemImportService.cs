@@ -13,6 +13,8 @@ using Migration.Toolkit.Sitefinity.Core.Helpers;
 using Migration.Toolkit.Sitefinity.Core.Services;
 using Migration.Toolkit.Sitefinity.Model;
 
+using Progress.Sitefinity.RestSdk.Dto;
+
 namespace Migration.Toolkit.Sitefinity.Services
 {
     internal class ContentItemImportService(IImportService kenticoImportService,
@@ -38,13 +40,46 @@ namespace Migration.Toolkit.Sitefinity.Services
 
             foreach (var dataClassGuid in dependenciesModel.DataClasses.Keys)
             {
+                var dataClass = dependenciesModel.DataClasses[dataClassGuid];
                 var types = typeProvider.GetAllTypes().Where(type => Array.Exists(Constants.ForcedWebsiteTypes, x => !x.Equals(type.Name)));
 
+                // First try to find by DataClassGuid (for original Sitefinity types)
                 var type = types.FirstOrDefault(x => x.Id == dataClassGuid);
+
+                // If not found, this might be an existing Kentico content type
+                // We need to find the original Sitefinity type that maps to this Kentico type
+                if (type == null && !string.IsNullOrEmpty(dataClass.ClassName))
+                {
+                    logger.LogDebug("Could not find Sitefinity type for DataClass GUID {DataClassGuid} (ClassName: {ClassName}). Attempting reverse lookup for existing content type.",
+                        dataClassGuid, dataClass.ClassName);
+
+                    // Get all Sitefinity types that should map to existing Kentico content types
+                    var allSitefinityTypes = types.ToList();
+
+                    // Try to find a Sitefinity type by checking if any of them would map to this Kentico class
+                    foreach (var sitefinityType in allSitefinityTypes)
+                    {
+                        if (sitefinityType.Name == null || sitefinityType.ClassNamespace == null)
+                        {
+                            continue;
+                        }
+
+                        // Check if this Sitefinity type would map to the current Kentico class
+                        string mappedClassName = contentHelper.GetMappedClassName(sitefinityType.Name, $"{sitefinityType.ClassNamespace}.{sitefinityType.Name}");
+
+                        if (!string.IsNullOrEmpty(mappedClassName) && mappedClassName.Equals(dataClass.ClassName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            logger.LogDebug("Found Sitefinity type '{SitefinityType}' that maps to existing Kentico class '{KenticoClass}'",
+                                sitefinityType.Name, dataClass.ClassName);
+                            type = sitefinityType;
+                            break;
+                        }
+                    }
+                }
 
                 if (type == null)
                 {
-                    logger.LogWarning("No type found for dataclass with ClassGuid of {DataClassGuid}. Cannot get items based on data class: {DataClassName}", dataClassGuid, dependenciesModel.DataClasses[dataClassGuid].ClassName);
+                    logger.LogWarning("No type found for dataclass with ClassGuid of {DataClassGuid}. Cannot get items based on data class: {DataClassName}", dataClassGuid, dataClass.ClassName);
                     continue;
                 }
 
@@ -57,7 +92,7 @@ namespace Migration.Toolkit.Sitefinity.Services
                 {
                     SitefinityTypeNameSpace = type.ClassNamespace,
                     SitefinityTypeName = type.Name,
-                    DataClassGuid = dataClassGuid,
+                    DataClassGuid = dataClassGuid, // Keep the original DataClassGuid for the content items to reference
                 });
             }
 
@@ -74,7 +109,81 @@ namespace Migration.Toolkit.Sitefinity.Services
 
             var contentItems = contentProvider.GetContentItems(typeDefinitions, currentSite.SystemCultures).OrderByDescending(x => (detailPageConfigs?.Any(z => z.TypeName.Equals(x.TypeName)) ?? false) ? x.TypeName : "");
 
-            return adapter.Adapt(contentItems, dependenciesModel);
+            // Filter content items to only include those created by backend users (exclude member submissions)
+            var filteredContentItems = contentItems.Where(item =>
+            {
+                // Get admin GUID from configuration or use default
+                var adminGuid = !string.IsNullOrEmpty(configuration.SitefinityAdminUserGuid)
+                    ? Guid.Parse(configuration.SitefinityAdminUserGuid)
+                    : Guid.Parse("6415B8CE-8072-4BCD-8E48-9D7178B826B7");
+
+                // Check if the owner exists in the users dependencies (only backend users are imported) or is admin
+                bool isBackendUser = dependenciesModel.Users.ContainsKey(item.Owner) || item.Owner == adminGuid;
+
+                // Only apply backend user filtering for NewsItem content type
+                if (string.Equals(item.TypeName, "NewsItem", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (!isBackendUser)
+                    {
+                        logger.LogInformation("Excluding {ContentType} '{Title}' (ID: {Id}) - submitted by member/frontend user (Owner: {Owner})",
+                            item.TypeName, item.Title, item.Id, item.Owner);
+                        return false;
+                    }
+                }
+
+                // Additional filtering for Event content type by Status=2 (published)
+                if (string.Equals(item.TypeName, "Event", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Check if Event has Status=2 (published)
+                    bool isPublished = HasPublishedStatus(item);
+
+                    if (!isPublished)
+                    {
+                        logger.LogInformation("Excluding Event '{Title}' (ID: {Id}) - not published (Status != 2)",
+                            item.Title, item.Id);
+                        return false;
+                    }
+                }
+
+                // For all other content types, include the item regardless of backend user status
+                return true;
+            });
+
+            return adapter.Adapt(filteredContentItems, dependenciesModel);
+        }
+
+        /// <summary>
+        /// Checks if a content item has published status (Status=2)
+        /// </summary>
+        /// <param name="item">The content item to check</param>
+        /// <returns>True if the item has Status=2 (published), false otherwise</returns>
+        private static bool HasPublishedStatus(ContentItem item)
+        {
+            try
+            {
+                // Try to get Status field from the content item
+                if (item is SdkItem sdkItem)
+                {
+                    if (sdkItem.TryGetValue("Status", out int statusValue))
+                    {
+                        return statusValue == 2; // Published status
+                    }
+
+                    if (sdkItem.TryGetValue("Status", out string? statusString) &&
+                        int.TryParse(statusString, out int parsedStatus))
+                    {
+                        return parsedStatus == 2; // Published status
+                    }
+                }
+
+                // If no Status field found, default to include (assume published)
+                return true;
+            }
+            catch
+            {
+                // If any error occurs, default to include (assume published)
+                return true;
+            }
         }
         public SitefinityImportResult<ContentItemSimplifiedModel> StartImport(ImportStateObserver observer)
         {

@@ -80,9 +80,10 @@ internal class MediaModelAdapter(ILogger<MediaModelAdapter> logger,
         Console.WriteLine($"MEDIA ITEM: {sourceMediaItem.ItemDefaultUrl} -> FOLDER GUID: {targetFolderGuid}");
 
         // Create asset URL
+        // Create asset URL using the separate media download domain
         string mediaAssetUrl = Uri.IsWellFormedUriString(sourceMediaItem.Url, UriKind.Absolute)
             ? URLHelper.RemoveQuery(sourceMediaItem.Url)
-            : "https://" + sitefinityDataConfiguration.SitefinitySiteDomain + URLHelper.RemoveQuery(sourceMediaItem.Url);
+            : "https://" + (configuration.MediaDownloadDomain ?? sitefinityDataConfiguration.SitefinitySiteDomain) + URLHelper.RemoveQuery(sourceMediaItem.Url);
 
         // Create language data with the asset using the default language
         string displayName = !string.IsNullOrWhiteSpace(sourceMediaItem.Title) ? sourceMediaItem.Title : sourceMediaItem.UrlName;

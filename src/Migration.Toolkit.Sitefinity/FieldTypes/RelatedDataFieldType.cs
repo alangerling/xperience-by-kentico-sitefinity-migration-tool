@@ -29,7 +29,12 @@ public class RelatedDataFieldType(ITypeProvider typeProvider, ILogger<RelatedDat
             return "contentitemreference";
         }
 
-        if (sitefinityField.RelatedDataType.Equals("Telerik.Sitefinity.Pages.Model.PageNode"))
+        if (sitefinityField.RelatedDataType.Equals("Telerik.Sitefinity.Pages.Model.PageNode")
+            || sitefinityField.RelatedDataType.Equals("Telerik.Sitefinity.DynamicTypes.Model.StateCompendium.CompendiumAuthor")
+            || sitefinityField.RelatedDataType.Equals("Telerik.Sitefinity.DynamicTypes.Model.EquipmentLeasingandFinance.MagazineAuthor")
+            || sitefinityField.RelatedDataType.Equals("Telerik.Sitefinity.DynamicTypes.Model.StateCompendium.Program")
+            || sitefinityField.RelatedDataType.Equals("Telerik.Sitefinity.News.Model.NewsItem")
+            )
         {
             return "webpages";
         }

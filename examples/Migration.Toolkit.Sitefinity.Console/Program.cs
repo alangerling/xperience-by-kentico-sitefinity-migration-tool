@@ -43,6 +43,7 @@ services.AddSitefinityMigrationToolkit(new SitefinityDataConfiguration
     PageContentTypes = root.GetSection("Sitefinity:PageContentTypes").Get<List<PageContentType>>(),
     KenticoDefaultWorkspaceName = root.GetValue<string>("Sitefinity:KenticoDefaultWorkspaceName") ?? "",
     KenticoAdministratorUserName = root.GetValue<string>("Sitefinity:KenticoAdministratorUserName") ?? "administrator",
+    MediaDownloadDomain = root.GetValue<string>("Sitefinity:MediaDownloadDomain")
 });
 
 var serviceProvider = services.BuildServiceProvider();

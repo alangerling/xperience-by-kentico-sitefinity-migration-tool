@@ -18,9 +18,10 @@ internal class DataClassModelAdapter(ILogger<DataClassModelAdapter> logger, Site
     {
         var websiteTypes = typeHelper.GetWebsiteTypes();
 
-        // Explicitly set Program to Reusable, not Website
+        // Explicitly set Program to Reusable, CompendiumAuthor as Website
         bool isProgramType = source.Name == "Program";
-        bool isPageType = (!isProgramType && (websiteTypes.Any(x => x.Id.Equals(source.Id)) || Array.Exists(Constants.ForcedWebsiteTypes, x => x.Equals(source.Name))));
+        bool isCompendiumAuthorType = source.Name == "CompendiumAuthor";
+        bool isPageType = (isCompendiumAuthorType || (!isProgramType && (websiteTypes.Any(x => x.Id.Equals(source.Id)) || Array.Exists(Constants.ForcedWebsiteTypes, x => x.Equals(source.Name)))));
 
         bool makeFieldNameUnique = source.Name is not "Image" and not "DownloadFile" and not "ContentPage";
 
