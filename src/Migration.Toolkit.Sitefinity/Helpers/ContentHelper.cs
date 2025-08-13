@@ -123,23 +123,6 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
             }
         },
         {
-            "MagazineIssue",
-            new ContentTypeMapping
-            {
-                SitefinityTypeName = "MagazineIssue",
-                KenticoClassName = "Elfa.MagazineIssue",
-                FieldMappings = new Dictionary<string, string>
-                {
-                    { "PageTitle", "Title" },
-                    { "MagazineIssueMonth", "IssueMonth" },
-                    { "MagazineIssueYear", "IssueYear" },
-                    { "PageImage", "CoverImage" },
-                    { "MagazineIssueSponsors", "Sponsors" },
-                    { "PublicationDate", "PublicationDate" },
-                }
-            }
-        },
-        {
             "MagazineSponsor",
             new ContentTypeMapping
             {
@@ -180,6 +163,23 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                     { "PublicationAuthor", "AuthorByline" },
                     { "PublicationAuthorPages", "ArticleAuthor" },
                     { "PageImage", "HeroImage" },
+                }
+            }
+        },
+        {
+            "MagazineIssue",
+            new ContentTypeMapping
+            {
+                SitefinityTypeName = "MagazineIssue",
+                KenticoClassName = "Elfa.MagazineIssue",
+                FieldMappings = new Dictionary<string, string>
+                {
+                    { "PageTitle", "Title" },
+                    { "MagazineIssueMonth", "IssueMonth" },
+                    { "MagazineIssueYear", "IssueYear" },
+                    { "PageImage", "CoverImage" },
+                    { "MagazineIssueSponsors", "Sponsors" },
+                    { "PublicationDate", "PublicationDate" },
                 }
             }
         },
@@ -837,6 +837,49 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                         {
                             // Default to false if ShowEventTime is not set (meaning it's not an all-day event)
                             newContentItemData[kenticoFieldName] = false;
+                        }
+
+                        continue; // Skip the normal field mapping logic for this field
+                    }
+
+                    // Special handling for page reference fields to use WebPageGuid instead of Identifier
+                    // Keep ONLY true page-reference fields here. Do NOT convert MagazineIssue -> Sponsors.
+                    if ((typeNameWithoutNamespace == "MagazineArticle" && sitefinityFieldName == "ArticleAuthor") ||
+                        (typeNameWithoutNamespace == "CompendiumIssue" && sitefinityFieldName == "Authors"))
+                    {
+                        if (contentItemData.TryGetValue(sitefinityFieldName, out object? pageReferencesValue) && pageReferencesValue != null)
+                        {
+                            string pageReferencesJson = pageReferencesValue.ToString() ?? string.Empty;
+
+                            try
+                            {
+                                var pageReferences = JsonSerializer.Deserialize<List<ContentRelatedItem>>(pageReferencesJson);
+                                if (pageReferences != null && pageReferences.Count > 0)
+                                {
+                                    // Convert from Identifier to WebPageGuid format for page references
+                                    var webPageReferences = pageReferences
+                                        .Where(item => item.Identifier != Guid.Empty)
+                                        .Select(item => new { WebPageGuid = item.Identifier })
+                                        .ToList();
+
+                                    newContentItemData[kenticoFieldName] = JsonSerializer.Serialize(webPageReferences);
+                                    logger.LogDebug("{ContentType} {FieldName}: Converted {Count} page references from Identifier to WebPageGuid format",
+                                        typeNameWithoutNamespace, sitefinityFieldName, webPageReferences.Count);
+                                }
+                                else if (!string.IsNullOrWhiteSpace(pageReferencesJson) && !pageReferencesJson.Equals("[]", StringComparison.Ordinal))
+                                {
+                                    // If it's not empty but couldn't parse as array, use as is
+                                    newContentItemData[kenticoFieldName] = pageReferencesJson;
+                                }
+                            }
+                            catch (JsonException)
+                            {
+                                // If JSON parsing fails, use the original value
+                                if (!string.IsNullOrWhiteSpace(pageReferencesJson) && !pageReferencesJson.Equals("[]", StringComparison.Ordinal))
+                                {
+                                    newContentItemData[kenticoFieldName] = pageReferencesJson;
+                                }
+                            }
                         }
 
                         continue; // Skip the normal field mapping logic for this field

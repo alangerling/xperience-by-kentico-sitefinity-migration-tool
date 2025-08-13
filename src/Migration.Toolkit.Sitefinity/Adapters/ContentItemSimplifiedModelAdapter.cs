@@ -24,6 +24,18 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
 {
     private readonly Dictionary<Guid, ContentItemSimplifiedModel> detailContentItems = [];
 
+    private readonly Dictionary<int, Guid> stateContentItemGuids = [];
+    private readonly Dictionary<Guid, Guid> magazineIssueContentItemGuids = [];
+
+    /// <summary>
+    /// Maps CompendiumAuthor IDs to their corresponding state folder paths.
+    /// This dictionary is populated when processing CompendiumIssue items that reference authors,
+    /// and is used later when processing individual CompendiumAuthor items to place them
+    /// in the correct state-specific folder structure.
+    /// Key: Author ContentItem ID, Value: State folder path (e.g., "/compendium/texas")
+    /// </summary>
+    private readonly Dictionary<Guid, string> compendiumAuthorStateMapping = [];
+
     protected override ContentItemSimplifiedModel? AdaptInternal(ContentItem source, ContentDependencies dependenciesModel)
     {
         var rootFolder = ContentFolderInfo.Provider.GetRootAsync(configuration.KenticoDefaultWorkspaceName).GetAwaiter().GetResult();
@@ -63,24 +75,21 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
 
         if (targetDataClass.ClassContentTypeType.Equals("Reusable"))
         {
-            logger.LogDebug("Content type is Reusable for {ItemId} ({ItemTitle}). Using AdaptReusable.", source.Id, source.Title);
+            logger.LogDebug("Content type is Reusable for {ItemId} ({ItemTitle). Using AdaptReusable.", source.Id, source.Title);
             return AdaptReusable(source, languageData, new ContentFolderInfo { ContentFolderGUID = targetDataClass.ClassGUID ?? rootFolder.ContentFolderGUID }, finalClassName);
         }
 
         if (targetDataClass.ClassContentTypeType.Equals("Website"))
         {
             logger.LogDebug("Content type is Website for {ItemId} ({ItemTitle}). Using AdaptPage.", source.Id, source.Title);
-            return AdaptPage(source, targetDataClass, languageData, dependenciesModel, finalClassName);
+            return AdaptPage(source, languageData, dependenciesModel, finalClassName);
         }
 
         logger.LogDebug("Content type type '{ContentTypeType}' not recognized for {ItemId} ({ItemTitle}). Using AdaptReusable with root folder.", targetDataClass.ClassContentTypeType, source.Id, source.Title);
         return AdaptReusable(source, languageData, rootFolder, finalClassName);
     }
 
-    private readonly Dictionary<int, Guid> stateContentItemGuids = [];
-    private readonly Dictionary<Guid, Guid> magazineIssueContentItemGuids = [];
-
-    private ContentItemSimplifiedModel? AdaptPage(ContentItem source, DataClassModel dataClassModel, IEnumerable<ContentItemLanguageData> languageData, ContentDependencies dependenciesModel, string finalClassName)
+    private ContentItemSimplifiedModel? AdaptPage(ContentItem source, IEnumerable<ContentItemLanguageData> languageData, ContentDependencies dependenciesModel, string finalClassName)
     {
         var channel = contentHelper.GetCurrentChannel(dependenciesModel.Channels.Values);
 
@@ -148,6 +157,27 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
                 stateContentItemGuids[stateName.GetHashCode()] = source.Id;
             }
 
+            if (source.TypeName is "CompendiumIssue")
+            {
+                var authors = source.GetValue<IEnumerable<ContentItem>>("Authors");
+
+                // Extract the state name from the CompendiumIssue's URL to map authors to state folders
+                string[] segments = (source.ItemDefaultUrl ?? string.Empty).Split('/', StringSplitOptions.RemoveEmptyEntries);
+                string stateName = segments.Length > 0 ? segments[0] : string.Empty;
+                string stateFolderPath = $"{pageConfig.PageRootPath}/{stateName}";
+
+                // Map each author to the state folder path
+                if (authors != null && !string.IsNullOrEmpty(stateName))
+                {
+                    foreach (var author in authors)
+                    {
+                        compendiumAuthorStateMapping[author.Id] = stateFolderPath;
+                        logger.LogDebug("Mapped CompendiumAuthor {AuthorId} ({AuthorTitle}) to state folder path: {StateFolderPath}",
+                            author.Id, author.Title, stateFolderPath);
+                    }
+                }
+            }
+
             if (source.TypeName is "TaxManualItem" or "CompendiumIssue")
             {
                 // Extract the state name as the first folder segment from ItemDefaultUrl
@@ -180,6 +210,50 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
                 return stateContentItem;
             }
 
+            // Special handling for CompendiumAuthor to use state folder mapping
+            if (source.TypeName == "CompendiumAuthor")
+            {
+                // Check if we have a state folder mapping for this author
+                if (compendiumAuthorStateMapping.TryGetValue(source.Id, out string? authorStateFolderPath))
+                {
+                    // Extract state name from the folder path for parent lookup
+                    string[] pathSegments = authorStateFolderPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                    string stateName = pathSegments.Length > 1 ? pathSegments[^1] : string.Empty; // Get last segment (state name)
+
+                    stateContentItemGuids.TryGetValue(stateName.GetHashCode(), out var parentGuid);
+
+                    var authorStatePageData = new PageDataModel
+                    {
+                        ItemOrder = null,
+                        PageUrls = contentHelper.GetPageUrls(dependenciesModel, source, rootPath: authorStateFolderPath),
+                        PageGuid = source.Id,
+                        ParentGuid = parentGuid,
+                        TreePath = authorStateFolderPath + (source.ItemDefaultUrl ?? string.Empty)
+                    };
+
+                    var authorStateContentItem = new ContentItemSimplifiedModel
+                    {
+                        ContentItemGUID = source.Id,
+                        ContentTypeName = finalClassName,
+                        Name = contentHelper.GetName(source.Title, source.Id),
+                        LanguageData = languageData.ToList(),
+                        IsReusable = false,
+                        PageData = authorStatePageData,
+                        ChannelName = channel.ChannelName
+                    };
+
+                    logger.LogDebug("CompendiumAuthor {AuthorId} ({AuthorTitle}) placed in state folder: {StateFolderPath}",
+                        source.Id, source.Title, authorStateFolderPath);
+
+                    return authorStateContentItem;
+                }
+                else
+                {
+                    logger.LogWarning("No state folder mapping found for CompendiumAuthor {AuthorId} ({AuthorTitle}). Using default page config.",
+                        source.Id, source.Title);
+                }
+            }
+
             // Special handling for Magazine content types to create parent-child relationships
             if (source.TypeName == "MagazineIssue")
             {
@@ -194,7 +268,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
             if (source.TypeName is "MagazineArticle" or "MagazineAuthor")
             {
                 // Find the parent MagazineIssue using the ParentId field
-                Guid parentMagazineIssueGuid = GetParentMagazineIssueId(source);
+                var parentMagazineIssueGuid = GetParentMagazineIssueId(source);
 
                 if (parentMagazineIssueGuid != Guid.Empty &&
                     magazineIssueContentItemGuids.ContainsKey(parentMagazineIssueGuid))
@@ -336,7 +410,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
     private static Guid GetParentMagazineIssueId(ContentItem childItem)
     {
         // Use ParentId field directly - this is much more reliable than URL parsing
-        if (!string.IsNullOrEmpty(childItem.ParentId) && Guid.TryParse(childItem.ParentId, out Guid parentId))
+        if (!string.IsNullOrEmpty(childItem.ParentId) && Guid.TryParse(childItem.ParentId, out var parentId))
         {
             return parentId;
         }

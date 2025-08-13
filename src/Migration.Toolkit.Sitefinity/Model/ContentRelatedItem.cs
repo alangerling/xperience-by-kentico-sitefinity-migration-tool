@@ -2,4 +2,5 @@
 internal class ContentRelatedItem
 {
     public Guid Identifier { get; set; }
+    public Guid? WebPageGuid { get; set; }
 }
