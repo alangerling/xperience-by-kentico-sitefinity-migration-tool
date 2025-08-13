@@ -121,6 +121,134 @@ internal class ContentProvider(IRestClient restClient, ILogger<ContentProvider> 
         return contentItems.Values;
     }
 
+    /// <summary>
+    /// Gets filtered NewsItem content based on ELFA business rules.
+    /// Filters for status = 2 (published), specific organizations, and specific email domains.
+    /// </summary>
+    /// <param name="typeDefinitions">Type definitions to query</param>
+    /// <param name="cultures">Cultures to query</param>
+    /// <returns>Filtered NewsItem content</returns>
+    public IEnumerable<ContentItem> GetFilteredNewsItems(IEnumerable<SitefinityTypeDefinition> typeDefinitions, IEnumerable<SystemCulture> cultures)
+    {
+        string[] allowedTypes = new[] { "NewsItem" };
+
+        // Filter typeDefinitions to only NewsItem types
+        var filteredTypeDefinitions = typeDefinitions
+            .Where(td => allowedTypes.Contains(td.SitefinityTypeName))
+            .ToList();
+
+        if (!filteredTypeDefinitions.Any())
+        {
+            logger.LogWarning("No NewsItem type definitions found for filtering.");
+            return [];
+        }
+
+        using var context = sitefinityContext.CreateDbContext();
+        versions ??= [.. context.VersionChanges.OrderByDescending(x => x.Version).Where(x => x.ChangeType.Equals("publish"))];
+
+        var defaultCulture = cultures.FirstOrDefault(cultures => cultures.IsDefault);
+
+        if (defaultCulture == null || defaultCulture.Culture == null)
+        {
+            logger.LogCritical("Default culture not found. Cannot retrieve NewsItem content from Sitefinity.");
+            return [];
+        }
+
+        var contentItems = GetContentItemsInternal(filteredTypeDefinitions, defaultCulture);
+
+        // Apply ELFA business rule filtering
+        var filteredContentItems = new Dictionary<Guid, ContentItem>();
+
+        foreach (var kvp in contentItems)
+        {
+            var item = kvp.Value;
+
+            // Apply the same filtering logic as the SQL query
+            if (IsElfaNewsItem(item))
+            {
+                filteredContentItems.Add(kvp.Key, item);
+                logger.LogDebug("NewsItem {ItemId} ({ItemTitle}) passed ELFA filtering criteria.", item.Id, item.Title);
+            }
+            else
+            {
+                logger.LogDebug("NewsItem {ItemId} ({ItemTitle}) filtered out by ELFA criteria.", item.Id, item.Title);
+            }
+        }
+
+        // Handle alternate cultures for filtered items
+        foreach (var alternateCulture in cultures.Where(x => !defaultCulture.Culture.Equals(x.Culture)))
+        {
+            var alternateCultureContentItems = GetContentItemsInternal(filteredTypeDefinitions, alternateCulture);
+
+            foreach (var alternateContentItem in alternateCultureContentItems)
+            {
+                if (!filteredContentItems.TryGetValue(alternateContentItem.Key, out var contentItem))
+                {
+                    continue;
+                }
+
+                contentItem.AlternateLanguageContentItems.Add(alternateContentItem.Value);
+            }
+        }
+
+        logger.LogInformation("Filtered NewsItems: {FilteredCount} out of {TotalCount} items passed ELFA criteria.",
+            filteredContentItems.Count, contentItems.Count);
+
+        return filteredContentItems.Values;
+    }
+
+    /// <summary>
+    /// Determines if a NewsItem meets ELFA filtering criteria based on organization and email rules.
+    /// Equivalent to the SQL WHERE clause filtering logic:
+    /// 
+    /// WHERE status = 2 
+    /// AND (organization IS NULL OR organization = '' OR organization = 'ELFA' 
+    ///      OR organization = 'Equipment Leasing & Finance Magazine' 
+    ///      OR organization = 'Equipment Leasing & Finance Foundation')
+    /// AND (email IS NULL OR email = '' OR email LIKE '%elfaonline.org%' 
+    ///      OR email LIKE '%leasefoundation.org%' OR email LIKE '%equipmentfinanceadvantage.org%')
+    /// </summary>
+    /// <param name="newsItem">The NewsItem to evaluate</param>
+    /// <returns>True if the item should be included, false otherwise</returns>
+    private bool IsElfaNewsItem(ContentItem newsItem)
+    {
+        // Get organization value - corresponds to SQL: organization column
+        string? organization = newsItem.GetValue<string>("Organization")?.Trim();
+
+        // Get email value - corresponds to SQL: email column  
+        string? email = newsItem.GetValue<string>("Email")?.Trim();
+
+        // Check organization criteria:
+        // (organization IS NULL OR organization = '' OR organization = 'ELFA' 
+        //  OR organization = 'Equipment Leasing & Finance Magazine' 
+        //  OR organization = 'Equipment Leasing & Finance Foundation')
+        bool organizationMatches = string.IsNullOrWhiteSpace(organization) ||
+                                 organization.Equals("ELFA", StringComparison.OrdinalIgnoreCase) ||
+                                 organization.Equals("Equipment Leasing & Finance Magazine", StringComparison.OrdinalIgnoreCase) ||
+                                 organization.Equals("Equipment Leasing & Finance Foundation", StringComparison.OrdinalIgnoreCase);
+
+        // Check email criteria:
+        // (email IS NULL OR email = '' OR email LIKE '%elfaonline.org%' 
+        //  OR email LIKE '%leasefoundation.org%' OR email LIKE '%equipmentfinanceadvantage.org%')
+        bool emailMatches = string.IsNullOrWhiteSpace(email) ||
+                          email.Contains("elfaonline.org", StringComparison.OrdinalIgnoreCase) ||
+                          email.Contains("leasefoundation.org", StringComparison.OrdinalIgnoreCase) ||
+                          email.Contains("equipmentfinanceadvantage.org", StringComparison.OrdinalIgnoreCase);
+
+        // Note: The Status = 2 filter is handled by the REST SDK as it only retrieves published content
+        // Note: Not filtering by related_u_r_ls as per the commented SQL
+
+        bool passes = organizationMatches && emailMatches;
+
+        if (!passes)
+        {
+            logger.LogTrace("NewsItem {ItemId} filtered out. Organization: '{Organization}' (matches: {OrgMatches}), Email: '{Email}' (matches: {EmailMatches})",
+                newsItem.Id, organization ?? "null", organizationMatches, email ?? "null", emailMatches);
+        }
+
+        return passes;
+    }
+
     private Dictionary<Guid, ContentItem> GetContentItemsInternal(IEnumerable<SitefinityTypeDefinition> typeDefinitions, SystemCulture defaultCulture)
     {
         var contentItems = new Dictionary<Guid, ContentItem>();
@@ -131,7 +259,7 @@ internal class ContentProvider(IRestClient restClient, ILogger<ContentProvider> 
             {
                 Type = $"{typeDefinition.SitefinityTypeNameSpace}.{typeDefinition.SitefinityTypeName}",
                 Fields = ["*"],
-                Culture = defaultCulture.Culture
+                Culture = defaultCulture.Culture,
             };
 
             var items = GetUsingBatches<ContentItem>(getAllArgs);

@@ -46,6 +46,14 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
             return default;
         }
 
+        // Filter out CompendiumAuthor items that are not in the compendiumAuthorStateMapping
+        if (source.TypeName == "CompendiumAuthor" && !compendiumAuthorStateMapping.ContainsKey(source.Id))
+        {
+            logger.LogInformation("Filtering out CompendiumAuthor {AuthorId} ({AuthorTitle}) - not referenced by any CompendiumIssue items.",
+                source.Id, source.Title);
+            return default;
+        }
+
         // Check if there's an existing content type mapping for this Sitefinity type
         var existingContentType = existingContentTypeMappingService.GetExistingContentType(source.TypeName);
 
@@ -153,7 +161,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
             if (source.TypeName == $"State")
             {
                 string[] segments = (source.ItemDefaultUrl ?? string.Empty).Split('/', StringSplitOptions.RemoveEmptyEntries);
-                string stateName = segments.Length > 0 ? segments[0] : string.Empty;
+                string stateName = segments.Length > 0 ? segments[0].ToLowerInvariant() : string.Empty;
                 stateContentItemGuids[stateName.GetHashCode()] = source.Id;
             }
 
@@ -163,7 +171,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
 
                 // Extract the state name from the CompendiumIssue's URL to map authors to state folders
                 string[] segments = (source.ItemDefaultUrl ?? string.Empty).Split('/', StringSplitOptions.RemoveEmptyEntries);
-                string stateName = segments.Length > 0 ? segments[0] : string.Empty;
+                string stateName = segments.Length > 0 ? segments[0].ToLowerInvariant() : string.Empty;
                 string stateFolderPath = $"{pageConfig.PageRootPath}/{stateName}";
 
                 // Map each author to the state folder path
@@ -182,7 +190,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
             {
                 // Extract the state name as the first folder segment from ItemDefaultUrl
                 string[] segments = (source.ItemDefaultUrl ?? string.Empty).Split('/', StringSplitOptions.RemoveEmptyEntries);
-                string stateName = segments.Length > 0 ? segments[0] : string.Empty;
+                string stateName = segments.Length > 0 ? segments[0].ToLowerInvariant() : string.Empty;
                 string taxItemsPath = $"{pageConfig.PageRootPath}/{stateName}";
 
                 stateContentItemGuids.TryGetValue(stateName.GetHashCode(), out var parentGuid);
@@ -209,7 +217,6 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
 
                 return stateContentItem;
             }
-
             // Special handling for CompendiumAuthor to use state folder mapping
             if (source.TypeName == "CompendiumAuthor")
             {
@@ -218,7 +225,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
                 {
                     // Extract state name from the folder path for parent lookup
                     string[] pathSegments = authorStateFolderPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
-                    string stateName = pathSegments.Length > 1 ? pathSegments[^1] : string.Empty; // Get last segment (state name)
+                    string stateName = pathSegments.Length > 1 ? pathSegments[^1].ToLowerInvariant() : string.Empty; // Get last segment (state name) and convert to lowercase
 
                     stateContentItemGuids.TryGetValue(stateName.GetHashCode(), out var parentGuid);
 
@@ -329,6 +336,24 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
                     TreePath = pageConfig.PageRootPath + (source.ItemDefaultUrl ?? string.Empty)
                 };
 
+                // Special handling for NewsItem to add former URLs
+                if (source.TypeName == "NewsItem")
+                {
+                    const string newsListingRootPath = "/news-and-publications/industry-news";
+                    var formerUrls = CreateNewsItemFormerUrls(source, newsListingRootPath, dependenciesModel);
+                    listingChildPageData.PageFormerUrls = formerUrls;
+
+                    // Extract year/month from NewsItem URL and modify TreePath to use year/month folders
+                    string yearMonthPath = ExtractYearMonthFromNewsItemUrl(source.ItemDefaultUrl ?? string.Empty);
+                    if (!string.IsNullOrEmpty(yearMonthPath))
+                    {
+                        listingChildPageData.TreePath = $"{pageConfig.PageRootPath}/{yearMonthPath}{GetNewsItemUrlWithoutDate(source.ItemDefaultUrl ?? string.Empty)}";
+                    }
+
+                    logger.LogInformation("NewsItem {ItemId} ({ItemTitle}) created with {FormerUrlCount} former URLs under parent page {ParentGuid}, TreePath: {TreePath}",
+                        source.Id, source.Title, formerUrls.Count, listingPage.ContentItemGUID, listingChildPageData.TreePath);
+                }
+
                 var listingChildPageContentItem = new ContentItemSimplifiedModel
                 {
                     ContentItemGUID = source.Id,
@@ -417,5 +442,170 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
 
         // Return empty GUID if ParentId is not available or invalid
         return Guid.Empty;
+    }
+
+    /// <summary>
+    /// Creates former URLs for NewsItem content using the news listing root path and ItemDefaultUrl.
+    /// Example: https://www.elfaonline.org/news-and-publications/industry-news/read/2024/10/17/equipment-finance-industry-maintains-high-confidence-in-october
+    /// </summary>
+    /// <param name="source">The NewsItem source content</param>
+    /// <param name="newsListingRootPath">The root path for news listings (e.g., "/news-and-publications/industry-news")</param>
+    /// <param name="dependenciesModel">Content dependencies for language handling</param>
+    /// <returns>List of former URLs for the NewsItem</returns>
+    private List<PageFormerUrlModel> CreateNewsItemFormerUrls(ContentItem source, string newsListingRootPath, ContentDependencies dependenciesModel)
+    {
+        var formerUrls = new List<PageFormerUrlModel>();
+
+        if (string.IsNullOrEmpty(source.ItemDefaultUrl))
+        {
+            logger.LogWarning("NewsItem {ItemId} ({ItemTitle}) has no ItemDefaultUrl. Cannot create former URLs.", source.Id, source.Title);
+            return formerUrls;
+        }
+
+        var currentSite = contentHelper.GetCurrentSite();
+        if (currentSite == null)
+        {
+            logger.LogWarning("Current site not found. Cannot create former URLs for NewsItem {ItemId}.", source.Id);
+            return formerUrls;
+        }
+
+        // Create the former URL by combining the news listing root with /read and ItemDefaultUrl
+        // Remove leading slash from ItemDefaultUrl if present to avoid double slashes
+        string itemUrl = source.ItemDefaultUrl.TrimStart('/');
+        string formerUrlPath = $"{newsListingRootPath.TrimEnd('/')}/read/{itemUrl}";
+
+        foreach (var siteCulture in currentSite.SystemCultures)
+        {
+            var culture = dependenciesModel.ContentLanguages.Values.FirstOrDefault(x => x.ContentLanguageCultureFormat == siteCulture.Culture);
+
+            if (culture == null)
+            {
+                continue;
+            }
+
+            if (ValidationHelper.GetBoolean(culture.ContentLanguageIsDefault, false))
+            {
+                // Default culture - use the former URL as-is
+                formerUrls.Add(new PageFormerUrlModel
+                {
+                    FormerUrlPath = formerUrlPath.TrimStart('/'),
+                    LanguageName = culture.ContentLanguageName
+                });
+
+                logger.LogDebug("Created former URL for NewsItem {ItemId} in default culture {Culture}: {FormerUrl}",
+                    source.Id, culture.ContentLanguageName, formerUrlPath);
+            }
+            else
+            {
+                // Check if there's an alternate language version
+                var alternateLanguageContentItem = source.AlternateLanguageContentItems.Find(x => x.Culture == culture.ContentLanguageCultureFormat);
+
+                if (alternateLanguageContentItem != null && !string.IsNullOrEmpty(alternateLanguageContentItem.Url))
+                {
+                    // Use the alternate language URL
+                    string alternateItemUrl = contentHelper.GetRelativeUrl(alternateLanguageContentItem.Url).TrimStart('/');
+                    string alternateFormerUrlPath = $"{newsListingRootPath.TrimEnd('/')}/read/{alternateItemUrl}";
+
+                    formerUrls.Add(new PageFormerUrlModel
+                    {
+                        FormerUrlPath = alternateFormerUrlPath.TrimStart('/'),
+                        LanguageName = culture.ContentLanguageName
+                    });
+
+                    logger.LogDebug("Created former URL for NewsItem {ItemId} in alternate culture {Culture}: {FormerUrl}",
+                        source.Id, culture.ContentLanguageName, alternateFormerUrlPath);
+                }
+                else
+                {
+                    // Fallback: prefix the culture name to the default URL
+                    formerUrls.Add(new PageFormerUrlModel
+                    {
+                        FormerUrlPath = $"{culture.ContentLanguageName}{formerUrlPath}".TrimStart('/'),
+                        LanguageName = culture.ContentLanguageName
+                    });
+
+                    logger.LogDebug("Created fallback former URL for NewsItem {ItemId} in culture {Culture}: {FormerUrl}",
+                        source.Id, culture.ContentLanguageName, $"{culture.ContentLanguageName}{formerUrlPath}");
+                }
+            }
+        }
+
+        return formerUrls;
+    }
+
+    /// <summary>
+    /// Extracts year/month path from NewsItem URL.
+    /// Example: "2025/08/13/article-title" → "2025/08"
+    /// </summary>
+    /// <param name="itemDefaultUrl">The NewsItem ItemDefaultUrl</param>
+    /// <returns>Year/month path (e.g., "2025/08") or empty string if not found</returns>
+    private static string ExtractYearMonthFromNewsItemUrl(string itemDefaultUrl)
+    {
+        if (string.IsNullOrEmpty(itemDefaultUrl))
+        {
+            return string.Empty;
+        }
+
+        // Remove leading/trailing slashes and split the URL
+        string[] urlSegments = itemDefaultUrl.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+        // Check if we have at least year and month segments (expecting format: year/month/day/article-title)
+        if (urlSegments.Length >= 2)
+        {
+            string yearSegment = urlSegments[0];
+            string monthSegment = urlSegments[1];
+
+            // Validate that the first two segments look like year and month
+            if (int.TryParse(yearSegment, out int year) &&
+                int.TryParse(monthSegment, out int month) &&
+                year >= 1900 && year <= 2100 && // Reasonable year range
+                month >= 1 && month <= 12) // Valid month range
+            {
+                return $"{yearSegment}/{monthSegment}";
+            }
+        }
+
+        return string.Empty;
+    }
+
+    /// <summary>
+    /// Gets the NewsItem URL without the date components (year/month/day).
+    /// Example: "2025/08/13/article-title" → "/article-title"
+    /// </summary>
+    /// <param name="itemDefaultUrl">The NewsItem ItemDefaultUrl</param>
+    /// <returns>URL without date components, starting with slash</returns>
+    private static string GetNewsItemUrlWithoutDate(string itemDefaultUrl)
+    {
+        if (string.IsNullOrEmpty(itemDefaultUrl))
+        {
+            return string.Empty;
+        }
+
+        // Remove leading/trailing slashes and split the URL
+        string[] urlSegments = itemDefaultUrl.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+        // Check if we have the expected date format (year/month/day/...
+        if (urlSegments.Length >= 4)
+        {
+            string yearSegment = urlSegments[0];
+            string monthSegment = urlSegments[1];
+            string daySegment = urlSegments[2];
+
+            // Validate that the first three segments look like year/month/day
+            if (int.TryParse(yearSegment, out int year) &&
+                int.TryParse(monthSegment, out int month) &&
+                int.TryParse(daySegment, out int day) &&
+                year >= 1900 && year <= 2100 && // Reasonable year range
+                month >= 1 && month <= 12 && // Valid month range
+                day >= 1 && day <= 31) // Valid day range
+            {
+                // Return the remaining segments (everything after day) as the article path
+                string[] remainingSegments = urlSegments.Skip(3).ToArray();
+                return remainingSegments.Length > 0 ? "/" + string.Join("/", remainingSegments) : string.Empty;
+            }
+        }
+
+        // If the URL doesn't match the expected date format, return the original URL
+        return "/" + itemDefaultUrl.TrimStart('/');
     }
 }

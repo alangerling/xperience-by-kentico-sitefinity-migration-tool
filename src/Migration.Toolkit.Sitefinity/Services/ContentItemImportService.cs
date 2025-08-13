@@ -120,9 +120,17 @@ namespace Migration.Toolkit.Sitefinity.Services
                 // Check if the owner exists in the users dependencies (only backend users are imported) or is admin
                 bool isBackendUser = dependenciesModel.Users.ContainsKey(item.Owner) || item.Owner == adminGuid;
 
-                // Only apply backend user filtering for NewsItem content type
+                // Apply backend user filtering for NewsItem content type
                 if (string.Equals(item.TypeName, "NewsItem", StringComparison.OrdinalIgnoreCase))
                 {
+                    // Apply ELFA business rule filtering for NewsItems
+                    if (!IsElfaNewsItem(item))
+                    {
+                        logger.LogInformation("Excluding NewsItem '{Title}' (ID: {Id}) - does not meet ELFA business criteria",
+                            item.Title, item.Id);
+                        return false;
+                    }
+
                     if (!isBackendUser)
                     {
                         logger.LogInformation("Excluding {ContentType} '{Title}' (ID: {Id}) - submitted by member/frontend user (Owner: {Owner})",
@@ -184,6 +192,57 @@ namespace Migration.Toolkit.Sitefinity.Services
                 // If any error occurs, default to include (assume published)
                 return true;
             }
+        }
+
+        /// <summary>
+        /// Determines if a NewsItem meets ELFA filtering criteria based on organization and email rules.
+        /// Equivalent to the SQL WHERE clause filtering logic:
+        /// 
+        /// WHERE status = 2 
+        /// AND (organization IS NULL OR organization = '' OR organization = 'ELFA' 
+        ///      OR organization = 'Equipment Leasing & Finance Magazine' 
+        ///      OR organization = 'Equipment Leasing & Finance Foundation')
+        /// AND (email IS NULL OR email = '' OR email LIKE '%elfaonline.org%' 
+        ///      OR email LIKE '%leasefoundation.org%' OR email LIKE '%equipmentfinanceadvantage.org%')
+        /// </summary>
+        /// <param name="newsItem">The NewsItem to evaluate</param>
+        /// <returns>True if the item should be included, false otherwise</returns>
+        private bool IsElfaNewsItem(ContentItem newsItem)
+        {
+            // Get organization value - corresponds to SQL: organization column
+            string? organization = newsItem.GetValue<string>("Organization")?.Trim();
+
+            // Get email value - corresponds to SQL: email column  
+            string? email = newsItem.GetValue<string>("Email")?.Trim();
+
+            // Check organization criteria:
+            // (organization IS NULL OR organization = '' OR organization = 'ELFA' 
+            //  OR organization = 'Equipment Leasing & Finance Magazine' 
+            //  OR organization = 'Equipment Leasing & Finance Foundation')
+            bool organizationMatches = string.IsNullOrWhiteSpace(organization) ||
+                                     organization.Equals("ELFA", StringComparison.OrdinalIgnoreCase) ||
+                                     organization.Equals("Equipment Leasing & Finance Magazine", StringComparison.OrdinalIgnoreCase) ||
+                                     organization.Equals("Equipment Leasing & Finance Foundation", StringComparison.OrdinalIgnoreCase);
+
+            // Check email criteria:
+            // (email IS NULL OR email = '' OR email LIKE '%elfaonline.org%' 
+            //  OR email LIKE '%leasefoundation.org%' OR email LIKE '%equipmentfinanceadvantage.org%')
+            bool emailMatches = string.IsNullOrWhiteSpace(email) ||
+                              email.Contains("elfaonline.org", StringComparison.OrdinalIgnoreCase) ||
+                              email.Contains("leasefoundation.org", StringComparison.OrdinalIgnoreCase) ||
+                              email.Contains("equipmentfinanceadvantage.org", StringComparison.OrdinalIgnoreCase);
+
+            // Note: The Status = 2 filter is handled by the REST SDK as it only retrieves published content
+
+            bool passes = organizationMatches && emailMatches;
+
+            if (!passes)
+            {
+                logger.LogTrace("NewsItem {ItemId} filtered out. Organization: '{Organization}' (matches: {OrgMatches}), Email: '{Email}' (matches: {EmailMatches})",
+                    newsItem.Id, organization ?? "null", organizationMatches, email ?? "null", emailMatches);
+            }
+
+            return passes;
         }
         public SitefinityImportResult<ContentItemSimplifiedModel> StartImport(ImportStateObserver observer)
         {
