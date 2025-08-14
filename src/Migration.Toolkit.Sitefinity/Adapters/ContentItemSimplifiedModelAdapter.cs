@@ -83,7 +83,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
 
         if (targetDataClass.ClassContentTypeType.Equals("Reusable"))
         {
-            logger.LogDebug("Content type is Reusable for {ItemId} ({ItemTitle). Using AdaptReusable.", source.Id, source.Title);
+            logger.LogDebug("Content type is Reusable for {ItemId} ({ItemTitle}). Using AdaptReusable.", source.Id, source.Title);
             return AdaptReusable(source, languageData, new ContentFolderInfo { ContentFolderGUID = targetDataClass.ClassGUID ?? rootFolder.ContentFolderGUID }, finalClassName);
         }
 
