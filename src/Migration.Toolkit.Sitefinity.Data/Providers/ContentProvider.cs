@@ -13,15 +13,15 @@ internal class ContentProvider(IRestClient restClient, ILogger<ContentProvider> 
 {
 
     private static readonly string[] allowedTypes = {
+        "Program",
+        "MagazineSponsor",
         "NewsItem",
         "Event",
         "ElfaEvent",
         "Mlfi",
-        "Program",
         "MagazineIssue",
         "MagazineAuthor",
         "MagazineArticle",
-        "MagazineSponsor",
         "TaxManualItem",
         "State",
         "CompendiumIssue",

@@ -32,7 +32,8 @@ namespace Migration.Toolkit.Sitefinity.Services
                                             SitefinityImportConfiguration importConfiguration,
                                             ILogger<ContentItemImportService> logger,
                                             IUmtAdapterWithDependencies<ContentItem, ContentDependencies, ContentItemSimplifiedModel> adapter,
-                                            IContentFolderImportService contentFolderImportService) : IContentItemImportService
+                                            IContentFolderImportService contentFolderImportService,
+                                            IExistingContentTypeMappingService existingContentTypeMappingService) : IContentItemImportService
     {
         public IEnumerable<ContentItemSimplifiedModel> Get(ContentDependencies dependenciesModel)
         {
@@ -283,6 +284,7 @@ namespace Migration.Toolkit.Sitefinity.Services
 
             var rootFolder = ContentFolderInfo.Provider.GetRootAsync(configuration.KenticoDefaultWorkspaceName).GetAwaiter().GetResult();
 
+            // Create folders for reusable data classes coming from import
             foreach (var dataClass in dataClasses.Values.OfType<DataClassModel>())
             {
                 if (!string.IsNullOrWhiteSpace(dataClass.ClassName) && dataClass.ClassGUID != null && (dataClass.ClassContentTypeType == "Reusable" || dataClass.ClassName == configuration.SitefinityCodeNamePrefix + ".Programs"))
@@ -307,11 +309,52 @@ namespace Migration.Toolkit.Sitefinity.Services
                         ContentFolderDisplayName = folderName,
                         ContentFolderTreePath = $"/{folderName}",
                         ContentFolderParentFolderGUID = null
-
                     };
 
                     contentFoldersByClassName.Add(dataClass.ClassGUID ?? rootFolder.ContentFolderGUID, contentFolder);
                 }
+            }
+
+            // Ensure folders for built-in Kentico reusable types that may not be part of imported data classes
+            // Organization (Elfa.Organization) and EventProgram (Elfa.EventProgram)
+            string[] builtinReusableSitefinityTypes = new[] { "MagazineSponsor", "Program" };
+            foreach (string sfType in builtinReusableSitefinityTypes)
+            {
+                var existingType = existingContentTypeMappingService.GetExistingContentType(sfType);
+                if (existingType == null)
+                {
+                    continue;
+                }
+
+                if (!string.Equals(existingType.ClassContentTypeType, "Reusable", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var classGuid = existingType.ClassGUID;
+                if (contentFoldersByClassName.ContainsKey(classGuid))
+                {
+                    continue;
+                }
+
+                string className = existingType.ClassName;
+                string folderNameFromClass = className;
+                string[] classSplit = className.Split('.', 2, StringSplitOptions.RemoveEmptyEntries);
+                if (classSplit.Length > 1 && !string.IsNullOrWhiteSpace(classSplit[1]))
+                {
+                    folderNameFromClass = classSplit[1];
+                }
+
+                var builtinFolder = new ContentFolderModel
+                {
+                    ContentFolderGUID = classGuid,
+                    ContentFolderName = folderNameFromClass,
+                    ContentFolderDisplayName = folderNameFromClass,
+                    ContentFolderTreePath = $"/{folderNameFromClass}",
+                    ContentFolderParentFolderGUID = null
+                };
+
+                contentFoldersByClassName.Add(classGuid, builtinFolder);
             }
 
             var dependencies = new ContentDependencies
@@ -323,6 +366,35 @@ namespace Migration.Toolkit.Sitefinity.Services
                 ContentLanguages = languages.ImportedModels,
                 ContentFolders = contentFoldersByClassName
             };
+
+            // Pre-create subfolders for Program items under EventProgram based on their URL structure
+            var currentSite = contentHelper.GetCurrentSite();
+            if (currentSite != null)
+            {
+                var programType = typeProvider.GetAllTypes().FirstOrDefault(t => t.Name != null && t.Name.Equals("Program", StringComparison.OrdinalIgnoreCase));
+                if (programType != null)
+                {
+                    var programTypeDefs = new[]
+                    {
+                        new SitefinityTypeDefinition
+                        {
+                            SitefinityTypeNameSpace = programType.ClassNamespace!,
+                            SitefinityTypeName = programType.Name!,
+                            DataClassGuid = programType.Id
+                        }
+                    };
+
+                    foreach (var programItem in contentProvider.GetProgramsContentItems(programTypeDefs, currentSite.SystemCultures))
+                    {
+                        string subfolderPath = GetProgramSubfolderPathFromUrl(programItem.Url);
+                        if (!string.IsNullOrWhiteSpace(subfolderPath))
+                        {
+                            // Ensure root EventProgram exists in dependencies before creating subfolders
+                            folderManager.GetOrCreateContentTypeFolderPath("EventProgram", subfolderPath, dependencies);
+                        }
+                    }
+                }
+            }
 
             // Import content folders before importing content items
             var folderDependencies = new ContentFolderDependencies { ContentFolders = dependencies.ContentFolders };
@@ -352,6 +424,29 @@ namespace Migration.Toolkit.Sitefinity.Services
                 ImportedModels = contentItems.ToDictionary(x => x.ContentItemGUID),
                 Observer = kenticoImportService.StartImport(contentItems, observer)
             };
+        }
+
+        private static string GetProgramSubfolderPathFromUrl(string? url)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                return string.Empty;
+            }
+
+            string relative = url.Trim();
+            if (Uri.TryCreate(relative, UriKind.Absolute, out var absolute))
+            {
+                relative = absolute.PathAndQuery;
+            }
+
+            relative = relative.Trim('/');
+            if (string.IsNullOrEmpty(relative))
+            {
+                return string.Empty;
+            }
+
+            int lastSlash = relative.LastIndexOf('/');
+            return lastSlash > 0 ? relative[..lastSlash] : string.Empty;
         }
     }
 }

@@ -84,6 +84,17 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
         if (targetDataClass.ClassContentTypeType.Equals("Reusable"))
         {
             logger.LogDebug("Content type is Reusable for {ItemId} ({ItemTitle}). Using AdaptReusable.", source.Id, source.Title);
+
+            // For Program items, place them into subfolders under EventProgram based on ItemDefaultUrl/Url
+            if (string.Equals(source.TypeName, "Program", StringComparison.OrdinalIgnoreCase))
+            {
+                string? urlForFolder = source.ItemDefaultUrl ?? source.Url;
+                string subfolderPath = GetProgramSubfolderPath(urlForFolder);
+                var folderGuid = contentFolderManager.GetOrCreateContentTypeFolderPath("EventProgram", subfolderPath, dependenciesModel);
+
+                return AdaptReusable(source, languageData, new ContentFolderInfo { ContentFolderGUID = folderGuid }, finalClassName);
+            }
+
             return AdaptReusable(source, languageData, new ContentFolderInfo { ContentFolderGUID = targetDataClass.ClassGUID ?? rootFolder.ContentFolderGUID }, finalClassName);
         }
 
@@ -95,6 +106,30 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
 
         logger.LogDebug("Content type type '{ContentTypeType}' not recognized for {ItemId} ({ItemTitle}). Using AdaptReusable with root folder.", targetDataClass.ClassContentTypeType, source.Id, source.Title);
         return AdaptReusable(source, languageData, rootFolder, finalClassName);
+    }
+
+    private static string GetProgramSubfolderPath(string? itemUrl)
+    {
+        if (string.IsNullOrWhiteSpace(itemUrl))
+        {
+            return string.Empty;
+        }
+
+        string relative = itemUrl.Trim();
+        if (Uri.TryCreate(relative, UriKind.Absolute, out var abs))
+        {
+            relative = abs.PathAndQuery;
+        }
+
+        relative = relative.Trim('/');
+
+        if (string.IsNullOrEmpty(relative))
+        {
+            return string.Empty;
+        }
+
+        int lastSlash = relative.LastIndexOf('/');
+        return lastSlash > 0 ? relative[..lastSlash] : string.Empty;
     }
 
     private ContentItemSimplifiedModel? AdaptPage(ContentItem source, IEnumerable<ContentItemLanguageData> languageData, ContentDependencies dependenciesModel, string finalClassName)

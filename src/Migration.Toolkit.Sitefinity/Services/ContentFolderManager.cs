@@ -58,6 +58,61 @@ internal class ContentFolderManager(ILogger<ContentFolderManager> logger)
     }
 
     /// <summary>
+    /// Ensures a subfolder structure exists under the specified reusable content type root folder.
+    /// Example: rootFolderName = "EventProgram", subfolderPath = "events/2025" creates /EventProgram/events/2025.
+    /// Returns the GUID of the deepest subfolder (or the root folder GUID if subfolderPath is empty).
+    /// </summary>
+    /// <param name="rootFolderName">Reusable content type root folder name (e.g., "EventProgram")</param>
+    /// <param name="subfolderPath">Slash-delimited relative path (e.g., "events/2025")</param>
+    /// <param name="dependencies">Dependencies containing known folders</param>
+    /// <returns>GUID of the resulting subfolder (or root folder if no subfolderPath)</returns>
+    public Guid GetOrCreateContentTypeFolderPath(string rootFolderName, string? subfolderPath, ContentDependencies dependencies)
+    {
+        if (string.IsNullOrWhiteSpace(rootFolderName))
+        {
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(rootFolderName));
+        }
+
+        if (dependencies is null)
+        {
+            throw new ArgumentNullException(nameof(dependencies));
+        }
+
+        // Try to find an existing root folder by tree path in provided dependencies
+        string desiredRootPath = "/" + rootFolderName;
+        var rootFolder = dependencies.ContentFolders.Values
+            .FirstOrDefault(f => string.Equals(f.ContentFolderTreePath, desiredRootPath, StringComparison.OrdinalIgnoreCase));
+
+        if (rootFolder == null)
+        {
+            // Fallback to create a root folder (GUID will be generated)
+            rootFolder = GetRootFolderAndAddToDependencies(rootFolderName, dependencies.ContentFolders);
+        }
+        else
+        {
+            // Prime tracking dictionary so subsequent subfolder creation recognizes this root
+            string key = (rootFolder.ContentFolderTreePath ?? string.Empty).ToLowerInvariant();
+            if (!createdFoldersDictionary.ContainsKey(key))
+            {
+                createdFoldersDictionary[key] = rootFolder;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(subfolderPath))
+        {
+            return rootFolder.ContentFolderGUID ?? Guid.Empty;
+        }
+
+        string normalized = subfolderPath.Trim('/');
+        if (string.IsNullOrEmpty(normalized))
+        {
+            return rootFolder.ContentFolderGUID ?? Guid.Empty;
+        }
+
+        return CreateSubfolderStructure(normalized, rootFolder, dependencies.ContentFolders);
+    }
+
+    /// <summary>
     /// Gets all folders that have been created during the current session.
     /// </summary>
     /// <returns>Collection of created folders</returns>
