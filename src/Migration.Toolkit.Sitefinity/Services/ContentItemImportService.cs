@@ -120,9 +120,19 @@ namespace Migration.Toolkit.Sitefinity.Services
                 // Check if the owner exists in the users dependencies (only backend users are imported) or is admin
                 bool isBackendUser = dependenciesModel.Users.ContainsKey(item.Owner) || item.Owner == adminGuid;
 
+                // Check if Event has Status=2 (published)
+                bool isPublished = HasPublishedStatus(item);
+
                 // Apply backend user filtering for NewsItem content type
                 if (string.Equals(item.TypeName, "NewsItem", StringComparison.OrdinalIgnoreCase))
                 {
+                    if (!isPublished)
+                    {
+                        logger.LogInformation("Excluding NewsItem '{Title}' (ID: {Id}) - not published (Status != 2)",
+                            item.Title, item.Id);
+                        return false;
+                    }
+
                     // Apply ELFA business rule filtering for NewsItems
                     if (!IsElfaNewsItem(item))
                     {
@@ -142,9 +152,6 @@ namespace Migration.Toolkit.Sitefinity.Services
                 // Additional filtering for Event content type by Status=2 (published)
                 if (string.Equals(item.TypeName, "Event", StringComparison.OrdinalIgnoreCase))
                 {
-                    // Check if Event has Status=2 (published)
-                    bool isPublished = HasPublishedStatus(item);
-
                     if (!isPublished)
                     {
                         logger.LogInformation("Excluding Event '{Title}' (ID: {Id}) - not published (Status != 2)",
