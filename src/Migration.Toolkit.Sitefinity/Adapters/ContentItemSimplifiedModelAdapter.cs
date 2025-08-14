@@ -353,7 +353,19 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
 
             if (pageConfig.PageTemplateType == PageTemplateType.Listing)
             {
-                var listingPage = dependenciesModel.WebPages?.Values
+                // Try to find the most specific listing page based on folders in ItemDefaultUrl (e.g., yyyy/mm/dd for news)
+                ContentItemSimplifiedModel? listingPage = null;
+                string candidateFolderPath = ExtractDateFolderPathFromItemUrl(source.ItemDefaultUrl);
+                if (!string.IsNullOrWhiteSpace(candidateFolderPath))
+                {
+                    string candidatePath = $"{pageConfig.PageRootPath.TrimEnd('/')}/{candidateFolderPath}";
+                    listingPage = dependenciesModel.WebPages?.Values
+                        .FirstOrDefault(x => x.PageData?.TreePath != null &&
+                            x.PageData.TreePath.Equals(candidatePath, StringComparison.OrdinalIgnoreCase));
+                }
+
+                // Fallback to root listing page if no specific folder match found
+                listingPage ??= dependenciesModel.WebPages?.Values
                     .FirstOrDefault(x => x.PageData?.TreePath != null &&
                         x.PageData.TreePath.Equals(pageConfig.PageRootPath, StringComparison.OrdinalIgnoreCase));
 
@@ -371,19 +383,12 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
                     TreePath = pageConfig.PageRootPath + (source.ItemDefaultUrl ?? string.Empty)
                 };
 
-                // Special handling for NewsItem to add former URLs
+                // Special handling for NewsItem to add former URLs only (no TreePath override)
                 if (source.TypeName == "NewsItem")
                 {
                     const string newsListingRootPath = "/news-and-publications/industry-news";
                     var formerUrls = CreateNewsItemFormerUrls(source, newsListingRootPath, dependenciesModel);
                     listingChildPageData.PageFormerUrls = formerUrls;
-
-                    // Extract year/month from NewsItem URL and modify TreePath to use year/month folders
-                    string yearMonthPath = ExtractYearMonthFromNewsItemUrl(source.ItemDefaultUrl ?? string.Empty);
-                    if (!string.IsNullOrEmpty(yearMonthPath))
-                    {
-                        listingChildPageData.TreePath = $"{pageConfig.PageRootPath}/{yearMonthPath}{GetNewsItemUrlWithoutDate(source.ItemDefaultUrl ?? string.Empty)}";
-                    }
 
                     logger.LogInformation("NewsItem {ItemId} ({ItemTitle}) created with {FormerUrlCount} former URLs under parent page {ParentGuid}, TreePath: {TreePath}",
                         source.Id, source.Title, formerUrls.Count, listingPage.ContentItemGUID, listingChildPageData.TreePath);
@@ -477,6 +482,39 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
 
         // Return empty GUID if ParentId is not available or invalid
         return Guid.Empty;
+    }
+
+    /// <summary>
+    /// Extracts a folder path from an item's URL for listing page lookup.
+    /// For NewsItem URLs with a date prefix, returns yyyy/mm/dd; otherwise returns empty.
+    /// </summary>
+    /// <param name="itemDefaultUrl">The item's default URL</param>
+    /// <returns>Folder path like "yyyy/mm/dd" or empty string</returns>
+    private static string ExtractDateFolderPathFromItemUrl(string? itemDefaultUrl)
+    {
+        if (string.IsNullOrWhiteSpace(itemDefaultUrl))
+        {
+            return string.Empty;
+        }
+
+        string[] urlSegments = itemDefaultUrl.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (urlSegments.Length >= 3)
+        {
+            string y = urlSegments[0];
+            string m = urlSegments[1];
+            string d = urlSegments[2];
+            if (int.TryParse(y, out int year) &&
+                int.TryParse(m, out int month) &&
+                int.TryParse(d, out int day) &&
+                year >= 1900 && year <= 2100 &&
+                month >= 1 && month <= 12 &&
+                day >= 1 && day <= 31)
+            {
+                return $"{year:D4}/{month:D2}/{day:D2}";
+            }
+        }
+
+        return string.Empty;
     }
 
     /// <summary>

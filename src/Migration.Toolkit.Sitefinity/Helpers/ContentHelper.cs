@@ -736,8 +736,8 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                         }
                         else
                         {
-                            // Default to true if SeoDisallowRobots is not set
-                            newContentItemData[kenticoFieldName] = true;
+                            // Default to false if SeoDisallowRobots is not set
+                            newContentItemData[kenticoFieldName] = false;
                         }
 
                         continue; // Skip the normal field mapping logic for this field

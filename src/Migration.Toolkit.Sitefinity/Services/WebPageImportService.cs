@@ -25,7 +25,8 @@ namespace Migration.Toolkit.Sitefinity.Services
         IContentHelper contentHelper,
         ILogger<WebPageImportService> logger,
         IUmtAdapterWithDependencies<Page, ContentDependencies, ContentItemSimplifiedModel> adapter,
-        SitefinityImportConfiguration importConfiguration) : IWebPageImportService
+        SitefinityImportConfiguration importConfiguration,
+        ITypeProvider typeProvider) : IWebPageImportService
     {
         public IEnumerable<ContentItemSimplifiedModel> Get(ContentDependencies dependenciesModel)
         {
@@ -38,8 +39,72 @@ namespace Migration.Toolkit.Sitefinity.Services
 
             var currentSite = siteProvider.GetSites().First(x => x.Id.Equals(channel.ChannelGUID));
 
-            // Get required page paths from config
-            var requiredPaths = importConfiguration.PageContentTypes?.Select(x => x.PageRootPath).Distinct().ToList() ?? [];
+            // Get required page paths from config (roots)
+            var requiredPaths = importConfiguration.PageContentTypes?.Select(x => x.PageRootPath).Distinct(StringComparer.OrdinalIgnoreCase).ToHashSet(StringComparer.OrdinalIgnoreCase) ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            // Build additional hierarchical paths based on item ItemDefaultUrl for selected Listing page types
+            var listingConfigs = importConfiguration.PageContentTypes?.Where(x => x.PageTemplateType == PageTemplateType.Listing).ToList() ?? [];
+
+            // Only create hierarchies for these types (easily extend by adding more names)
+            var hierarchyTypes = new HashSet<string>(new[] { "NewsItem" }, StringComparer.OrdinalIgnoreCase);
+            listingConfigs = listingConfigs.Where(cfg => hierarchyTypes.Contains(cfg.TypeName)).ToList();
+
+            if (listingConfigs.Count > 0)
+            {
+                // Build type definitions for selected listing types
+                var allTypes = typeProvider.GetAllTypes();
+                var typeDefs = new List<SitefinityTypeDefinition>();
+                var typeToRootMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var cfg in listingConfigs)
+                {
+                    var sfType = allTypes.FirstOrDefault(t => t.Name != null && t.Name.Equals(cfg.TypeName, StringComparison.OrdinalIgnoreCase));
+                    if (sfType?.Name == null || sfType.ClassNamespace == null)
+                    {
+                        continue;
+                    }
+                    typeDefs.Add(new SitefinityTypeDefinition
+                    {
+                        SitefinityTypeNameSpace = sfType.ClassNamespace,
+                        SitefinityTypeName = sfType.Name,
+                        DataClassGuid = sfType.Id
+                    });
+                    typeToRootMap[sfType.Name] = cfg.PageRootPath;
+                }
+
+                if (typeDefs.Count > 0)
+                {
+                    var items = contentProvider.GetContentItems(typeDefs, currentSite.SystemCultures);
+
+                    foreach (var item in items)
+                    {
+                        if (string.IsNullOrWhiteSpace(item.ItemDefaultUrl) || string.IsNullOrWhiteSpace(item.TypeName))
+                        {
+                            continue;
+                        }
+
+                        if (!typeToRootMap.TryGetValue(item.TypeName, out string? rootPath) || string.IsNullOrWhiteSpace(rootPath))
+                        {
+                            continue;
+                        }
+
+                        // Extract folder segments (exclude last segment which is the page slug)
+                        string[] segments = item.ItemDefaultUrl.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+                        if (segments.Length <= 1)
+                        {
+                            continue; // no hierarchy
+                        }
+
+                        // Build incremental paths under the root
+                        string current = rootPath.TrimEnd('/');
+                        for (int i = 0; i < segments.Length - 1; i++)
+                        {
+                            current += "/" + segments[i];
+                            requiredPaths.Add(current);
+                        }
+                    }
+                }
+            }
 
             var pages = requiredPaths.Any()
                 ? contentProvider.GetPages(currentSite.SystemCultures, requiredPaths)

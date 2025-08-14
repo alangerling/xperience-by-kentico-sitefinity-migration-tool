@@ -260,13 +260,10 @@ internal class ContentFolderManager(ILogger<ContentFolderManager> logger)
 
     private ContentFolderModel GetOrCreateSubfolder(string folderName, ContentFolderModel parentFolder, IDictionary<Guid, ContentFolderModel> allAvailableFolders)
     {
-        // Create a globally unique code name by incorporating the full folder path
-        // This ensures that folders with the same name under different parents have unique code names
-        string fullFolderPath = $"{parentFolder.ContentFolderTreePath}/{folderName}";
-
-        // Generate a globally unique code name that respects Kentico's 50-character limit
-        string globallyUniqueCodeName = GenerateUniqueCodeName(fullFolderPath, folderName);
-
+        // Create a globally unique code name (<= 50 chars) based on full intended path
+        string fullOriginalPath = $"{parentFolder.ContentFolderTreePath}/{folderName}";
+        string codeName = GenerateUniqueCodeName(fullOriginalPath, folderName);
+        string fullFolderPath = $"{parentFolder.ContentFolderTreePath}/{codeName}";
         string folderKeyForLookup = fullFolderPath.ToLowerInvariant();
 
         if (createdFoldersDictionary.TryGetValue(folderKeyForLookup, out var existingFolder))
@@ -279,7 +276,7 @@ internal class ContentFolderManager(ILogger<ContentFolderManager> logger)
         {
             ContentFolderGUID = Guid.NewGuid(),
             ContentFolderDisplayName = folderName, // Keep original display name
-            ContentFolderName = globallyUniqueCodeName, // Use globally unique code name within 50 char limit
+            ContentFolderName = codeName, // Unique code name <= 50 chars
             ContentFolderTreePath = fullFolderPath,
             ContentFolderParentFolderGUID = parentFolder.ContentFolderGUID
         };
