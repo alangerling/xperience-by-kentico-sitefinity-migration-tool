@@ -59,7 +59,7 @@ public class TextFieldType : FieldTypeBase, IFieldType
             return "longtext";
         }
 
-        if (sitefinityField.FieldTypeDisplayName?.Equals("Classification") == true || sitefinityField.FieldName?.Equals("Category") == true || sitefinityField.FieldName?.Equals("Tags") == true)
+        if (sitefinityField.FieldTypeDisplayName?.Equals("Classification") == true || sitefinityField.FieldName?.Equals("Category") == true || sitefinityField.FieldName?.Equals("Tags") == true || sitefinityField.FieldName?.Equals("newstypes") == true)
         {
             return "taxonomy";
         }
@@ -95,7 +95,7 @@ public class TextFieldType : FieldTypeBase, IFieldType
             "fundingsourcecompanytypes" => fundingSourceCompanyTypesTaxonomyGroupGuid,
             "leasestructure" => leaseStructuresTaxonomyGroupGuid,
             "lendertype" => lenderTypesTaxonomyGroupGuid,
-            "news-types" => newsTypesTaxonomyGroupGuid,
+            "news-types" or "newstypes" => newsTypesTaxonomyGroupGuid,
             "pagetemplates" => pageTemplatesTaxonomyGroupGuid,
             "sponsorshipcategories" or "sponsorship-categories" => sponsorshipCategoriesTaxonomyGroupGuid,
             "tags" => tagsTaxonomyGroupGuid,
@@ -179,6 +179,7 @@ public class TextFieldType : FieldTypeBase, IFieldType
             "leasestructure",
             "lendertype",
             "news-types",
+            "newstypes",
             "pagetemplates",
             "sponsorshipcategories",
             "sponsorship-categories",

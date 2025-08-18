@@ -13,20 +13,20 @@ internal class ContentProvider(IRestClient restClient, ILogger<ContentProvider> 
 {
 
     private static readonly string[] allowedTypes = {
-        "Program",
-        "MagazineSponsor",
-        "NewsItem",
-        "Event",
-        "ElfaEvent",
-        "Mlfi",
         "MagazineIssue",
         "MagazineAuthor",
         "MagazineArticle",
-        "TaxManualItem",
+        "MagazineSponsor",
+        "Event",
+        "ElfaEvent",
+        "Mlfi",
+        "Program",
+        "FundingSourceProfile",
         "State",
+        "TaxManualItem",
         "CompendiumIssue",
         "CompendiumAuthor",
-        "FundingSourceProfile",
+        "NewsItem",
     };
 
     private IEnumerable<SitefinityVersionChange>? versions;
@@ -38,9 +38,11 @@ internal class ContentProvider(IRestClient restClient, ILogger<ContentProvider> 
         var filteredTypeDefinitions = typeDefinitions
             .Where(td => allowedTypes.Contains(td.SitefinityTypeName))
             .ToList();
+
         if (!filteredTypeDefinitions.Any())
         {
-            filteredTypeDefinitions = (List<SitefinityTypeDefinition>)typeDefinitions;
+            logger.LogInformation("No type definitions found matching allowed types. Returning empty collection.");
+            return [];
         }
 
         using var context = sitefinityContext.CreateDbContext();
@@ -75,14 +77,21 @@ internal class ContentProvider(IRestClient restClient, ILogger<ContentProvider> 
     }
     public IEnumerable<ContentItem> GetProgramsContentItems(IEnumerable<SitefinityTypeDefinition> typeDefinitions, IEnumerable<SystemCulture> cultures)
     {
-        string[] allowedTypes = new[]
+        // Check if Program is in allowedTypes before proceeding
+        if (!allowedTypes.Contains("Program"))
+        {
+            logger.LogInformation("Program content type is not in allowedTypes. Skipping Programs retrieval.");
+            return [];
+        }
+
+        string[] programTypes = new[]
         {
             "Program",
         };
 
         // Filter typeDefinitions to only allowed types
         var filteredTypeDefinitions = typeDefinitions
-            .Where(td => allowedTypes.Contains(td.SitefinityTypeName))
+            .Where(td => programTypes.Contains(td.SitefinityTypeName))
             .ToList();
 
         if (!filteredTypeDefinitions.Any())
@@ -130,11 +139,18 @@ internal class ContentProvider(IRestClient restClient, ILogger<ContentProvider> 
     /// <returns>Filtered NewsItem content</returns>
     public IEnumerable<ContentItem> GetFilteredNewsItems(IEnumerable<SitefinityTypeDefinition> typeDefinitions, IEnumerable<SystemCulture> cultures)
     {
-        string[] allowedTypes = new[] { "NewsItem" };
+        // Check if NewsItem is in allowedTypes before proceeding
+        if (!allowedTypes.Contains("NewsItem"))
+        {
+            logger.LogInformation("NewsItem content type is not in allowedTypes. Skipping NewsItems retrieval.");
+            return [];
+        }
+
+        string[] newsItemTypes = new[] { "NewsItem" };
 
         // Filter typeDefinitions to only NewsItem types
         var filteredTypeDefinitions = typeDefinitions
-            .Where(td => allowedTypes.Contains(td.SitefinityTypeName))
+            .Where(td => newsItemTypes.Contains(td.SitefinityTypeName))
             .ToList();
 
         if (!filteredTypeDefinitions.Any())
@@ -259,7 +275,7 @@ internal class ContentProvider(IRestClient restClient, ILogger<ContentProvider> 
             {
                 Type = $"{typeDefinition.SitefinityTypeNameSpace}.{typeDefinition.SitefinityTypeName}",
                 Fields = ["*"],
-                Culture = defaultCulture.Culture,
+                Culture = defaultCulture.Culture
             };
 
             var items = GetUsingBatches<ContentItem>(getAllArgs);

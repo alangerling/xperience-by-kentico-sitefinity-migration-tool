@@ -158,11 +158,11 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                 {
                     { "PageTitle", "Title" },
                     { "PageDescription", "Summary" },
-                    { "PageCopyHtml1", "Photo" },
-                    { "ListingItemThumbnail", "Photo" },
+                    { "PageCopyHtml1", "FullText" },
                     { "PublicationAuthor", "AuthorByline" },
                     { "PublicationAuthorPages", "ArticleAuthor" },
                     { "PageImage", "HeroImage" },
+                    { "AdditionalCategories", "Category" },
                 }
             }
         },
@@ -550,7 +550,13 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
         {
             var fieldType = fieldTypeFactory.CreateFieldType(field.WidgetTypeName);
 
+            string? fieldName = field.Name;
+
             if (field.Name == null)
+            {
+                fieldName = field.FieldName;
+            }
+            if (fieldName == null)
             {
                 continue;
             }
@@ -564,12 +570,18 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
             {
                 if (cultureSdkItem is SdkItem sdkItem)
                 {
-                    object? data = fieldType.GetData(sdkItem, field.Name);
+                    object? data = fieldType.GetData(sdkItem, fieldName);
+
+                    // Normalize empty JSON array "[]" to null
+                    if (data is string dataString && (dataString.Trim() == "[]" || dataString.Trim() == "{[]}"))
+                    {
+                        data = null;
+                    }
 
                     // If data is null or empty string, add directly and skip further processing
                     if (data == null || (data is string str && string.IsNullOrEmpty(str)))
                     {
-                        contentItemData.Add(field.Name, data);
+                        contentItemData.Add(fieldName, data);
                         continue;
                     }
 
@@ -607,7 +619,7 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                         data = jToken.ToString(); // Serialize JToken to JSON string
                     }
 
-                    contentItemData.Add(field.Name, data);
+                    contentItemData.Add(fieldName, data);
                 }
             }
             catch (Exception ex)
@@ -659,7 +671,7 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                         string titleValue = string.Empty;
 
                         // Get PageTitle value
-                        if (contentItemData.TryGetValue("Title", out object? pageTitleValue) && pageTitleValue != null)
+                        if (contentItemData.TryGetValue("Title", out object? pageTitleValue) && pageTitleValue != null && !string.IsNullOrWhiteSpace(pageTitleValue.ToString()))
                         {
                             titleValue = pageTitleValue.ToString() ?? string.Empty;
                         }
@@ -685,40 +697,185 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                     }
 
                     // Special handling for ElfaEvent, Event, and NewsItem to combine Category and Tags into AdditionalCategories
-                    if ((typeNameWithoutNamespace == "ElfaEvent" || typeNameWithoutNamespace == "Event" || typeNameWithoutNamespace == "NewsItem") && sitefinityFieldName == "Category")
+                    if (sitefinityFieldName == "Category")
                     {
                         string combinedCategories = string.Empty;
 
-                        // Get Category value
-                        if (contentItemData.TryGetValue("Category", out object? categoryValue) && categoryValue != null)
+                        try
                         {
-                            combinedCategories = categoryValue.ToString() ?? string.Empty;
-                        }
+                            // Get Category value
+                            if (contentItemData.TryGetValue("Category", out object? categoryValue) &&
+                                categoryValue != null &&
+                                !string.IsNullOrWhiteSpace(categoryValue.ToString()) &&
+                                !categoryValue.ToString()!.Equals("[]") &&
+                                !categoryValue.ToString()!.Equals("{[]}"))
+                            {
+                                string categoryValueString = categoryValue.ToString() ?? string.Empty;
 
-                        // Get Tags value and append if it exists
-                        if (contentItemData.TryGetValue("Tags", out object? tagsValue) &&
-                            tagsValue != null &&
-                            !string.IsNullOrWhiteSpace(tagsValue.ToString()) &&
-                            !tagsValue.ToString()!.Equals("[]"))
-                        {
-                            string tagsText = tagsValue.ToString()!;
+                                // Validate that it's proper JSON before using it
+                                if (IsValidJson(categoryValueString))
+                                {
+                                    combinedCategories = categoryValueString;
+                                }
+                                else
+                                {
+                                    logger.LogWarning("Invalid JSON in Category field for {ContentType} {ItemUrl}. Skipping category data.", typeNameWithoutNamespace, cultureSdkItem.UrlName);
+                                }
+                            }
 
-                            // If we have both Category and Tags, we need to merge the JSON arrays
+                            // Get Tags value and append if it exists
+                            if (contentItemData.TryGetValue("Tags", out object? tagsValue) &&
+                                tagsValue != null &&
+                                !string.IsNullOrWhiteSpace(tagsValue.ToString()) &&
+                                !tagsValue.ToString()!.Equals("[]") &&
+                                !tagsValue.ToString()!.Equals("{[]}"))
+                            {
+                                string tagsText = tagsValue.ToString()!;
+
+                                // Validate that it's proper JSON before using it
+                                if (IsValidJson(tagsText))
+                                {
+                                    // If we have both Category and Tags, we need to merge the JSON arrays
+                                    if (!string.IsNullOrWhiteSpace(combinedCategories) && !combinedCategories.Equals("[]"))
+                                    {
+                                        combinedCategories = MergeTaxonomyArrays(combinedCategories, tagsText);
+                                    }
+                                    else
+                                    {
+                                        // If no Category data, just use Tags
+                                        combinedCategories = tagsText;
+                                    }
+                                }
+                                else
+                                {
+                                    logger.LogWarning("Invalid JSON in Tags field for {ContentType} {ItemUrl}. Skipping tags data.", typeNameWithoutNamespace, cultureSdkItem.UrlName);
+                                }
+                            }
+
+                            if (contentItemData.TryGetValue("newstypes", out object? newstypesValue) &&
+                                newstypesValue != null &&
+                                !string.IsNullOrWhiteSpace(newstypesValue.ToString()) &&
+                                !newstypesValue.ToString()!.Equals("[]") &&
+                                !newstypesValue.ToString()!.Equals("{[]}"))
+                            {
+                                string newstypesText = newstypesValue.ToString() ?? string.Empty;
+
+                                // Validate that it's proper JSON before using it
+                                if (IsValidJson(newstypesText))
+                                {
+                                    if (!string.IsNullOrWhiteSpace(combinedCategories) && !combinedCategories.Equals("[]"))
+                                    {
+                                        combinedCategories = MergeTaxonomyArrays(combinedCategories, newstypesText);
+                                    }
+                                    else
+                                    {
+                                        // If no Category data, just use Tags
+                                        combinedCategories = newstypesText;
+                                    }
+
+                                    logger.LogInformation("Merged newstypes into categories/tags for {ItemUrl}.", cultureSdkItem.UrlName);
+                                }
+                                else
+                                {
+                                    logger.LogWarning("Invalid JSON in newstypes field for {ContentType} {ItemUrl}. Skipping newstypes data.", typeNameWithoutNamespace, cultureSdkItem.UrlName);
+                                }
+                            }
+
+                            if (contentItemData.TryGetValue("articlecolumns", out object? articlecolumnsValue) &&
+                                articlecolumnsValue != null &&
+                                !string.IsNullOrWhiteSpace(articlecolumnsValue.ToString()) &&
+                                !articlecolumnsValue.ToString()!.Equals("[]") &&
+                                !articlecolumnsValue.ToString()!.Equals("{[]}"))
+                            {
+                                string articlecolumnsText = articlecolumnsValue.ToString() ?? string.Empty;
+
+                                // Validate that it's proper JSON before using it
+                                if (IsValidJson(articlecolumnsText))
+                                {
+                                    if (!string.IsNullOrWhiteSpace(combinedCategories) && !combinedCategories.Equals("[]"))
+                                    {
+                                        combinedCategories = MergeTaxonomyArrays(combinedCategories, articlecolumnsText);
+                                    }
+                                    else
+                                    {
+                                        // If no Category data, just use Tags
+                                        combinedCategories = articlecolumnsText;
+                                    }
+
+                                    logger.LogInformation("Merged articlecolumns into categories/tags for {ItemUrl}.", cultureSdkItem.UrlName);
+                                }
+                                else
+                                {
+                                    logger.LogWarning("Invalid JSON in articlecolumns field for {ContentType} {ItemUrl}. Skipping articlecolumns data.", typeNameWithoutNamespace, cultureSdkItem.UrlName);
+                                }
+                            }
+
+                            if (contentItemData.TryGetValue("articledepartments", out object? articledepartmentsValue) &&
+                                articledepartmentsValue != null &&
+                                !string.IsNullOrWhiteSpace(articledepartmentsValue.ToString()) &&
+                                !articledepartmentsValue.ToString()!.Equals("[]") &&
+                                !articledepartmentsValue.ToString()!.Equals("{[]}"))
+                            {
+                                string articledepartmentsText = articledepartmentsValue.ToString() ?? string.Empty;
+
+                                // Validate that it's proper JSON before using it
+                                if (IsValidJson(articledepartmentsText))
+                                {
+                                    if (!string.IsNullOrWhiteSpace(combinedCategories) && !combinedCategories.Equals("[]"))
+                                    {
+                                        combinedCategories = MergeTaxonomyArrays(combinedCategories, articledepartmentsText);
+                                    }
+                                    else
+                                    {
+                                        // If no Category data, just use Tags
+                                        combinedCategories = articledepartmentsText;
+                                    }
+
+                                    logger.LogInformation("Merged articledepartments into categories/tags for {ItemUrl}.", cultureSdkItem.UrlName);
+                                }
+                                else
+                                {
+                                    logger.LogWarning("Invalid JSON in articledepartments field for {ContentType} {ItemUrl}. Skipping articledepartments data.", typeNameWithoutNamespace, cultureSdkItem.UrlName);
+                                }
+                            }
+
+                            if (contentItemData.TryGetValue("articletypes", out object? articletypesValue) &&
+                                articletypesValue != null &&
+                                !string.IsNullOrWhiteSpace(articletypesValue.ToString()) &&
+                                !articletypesValue.ToString()!.Equals("[]") &&
+                                !articletypesValue.ToString()!.Equals("{[]}"))
+                            {
+                                string articletypesText = articletypesValue.ToString() ?? string.Empty;
+
+                                // Validate that it's proper JSON before using it
+                                if (IsValidJson(articletypesText))
+                                {
+                                    if (!string.IsNullOrWhiteSpace(combinedCategories) && !combinedCategories.Equals("[]"))
+                                    {
+                                        combinedCategories = MergeTaxonomyArrays(combinedCategories, articletypesText);
+                                    }
+                                    else
+                                    {
+                                        // If no Category data, just use Tags
+                                        combinedCategories = articletypesText;
+                                    }
+
+                                    logger.LogInformation("Merged articletypes into categories/tags for {ItemUrl}.", cultureSdkItem.UrlName);
+                                }
+                                else
+                                {
+                                    logger.LogWarning("Invalid JSON in articletypes field for {ContentType} {ItemUrl}. Skipping articletypes data.", typeNameWithoutNamespace, cultureSdkItem.UrlName);
+                                }
+                            }
+                            // Only add if we have category/tag data
                             if (!string.IsNullOrWhiteSpace(combinedCategories) && !combinedCategories.Equals("[]"))
                             {
-                                combinedCategories = MergeTaxonomyArrays(combinedCategories, tagsText);
-                            }
-                            else
-                            {
-                                // If no Category data, just use Tags
-                                combinedCategories = tagsText;
+                                newContentItemData[kenticoFieldName] = combinedCategories;
                             }
                         }
-
-                        // Only add if we have category/tag data
-                        if (!string.IsNullOrWhiteSpace(combinedCategories) && !combinedCategories.Equals("[]"))
+                        catch (Exception ex)
                         {
-                            newContentItemData[kenticoFieldName] = combinedCategories;
+                            logger.LogWarning(ex, "Error processing Category/Tags data for {ContentType} {ItemUrl}. Skipping field mapping.", typeNameWithoutNamespace, cultureSdkItem.UrlName);
                         }
 
                         continue; // Skip the normal field mapping logic for this field
@@ -727,54 +884,14 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                     // Special handling for NewsItem SeoDisallowRobots to IncludeInSitemap (invert the boolean)
                     if (typeNameWithoutNamespace == "NewsItem" && sitefinityFieldName == "IncludeInSitemap")
                     {
-                        if (contentItemData.TryGetValue("SeoDisallowRobots", out object? seoDisallowRobotsValue) && seoDisallowRobotsValue != null)
+                        if (contentItemData.TryGetValue(sitefinityFieldName, out object? includeInSitemapValue) && includeInSitemapValue != null)
                         {
-                            // Invert the SeoDisallowRobots value for IncludeInSitemap
-                            bool disallowRobots = ValidationHelper.GetBoolean(seoDisallowRobotsValue, false);
-                            bool includeInSitemap = !disallowRobots;
-                            newContentItemData[kenticoFieldName] = includeInSitemap;
+                            newContentItemData[kenticoFieldName] = !ValidationHelper.GetBoolean(includeInSitemapValue, true);
                         }
                         else
                         {
                             // Default to false if SeoDisallowRobots is not set
                             newContentItemData[kenticoFieldName] = false;
-                        }
-
-                        continue; // Skip the normal field mapping logic for this field
-                    }
-
-                    // Special handling for TaxManualItem PageImage to take only the first image from the array
-                    if (typeNameWithoutNamespace == "TaxManualItem" && sitefinityFieldName == "Image")
-                    {
-                        if (contentItemData.TryGetValue("PageImage", out object? pageImageValue) && pageImageValue != null)
-                        {
-                            string pageImageJson = pageImageValue.ToString() ?? string.Empty;
-
-                            // Try to parse as JSON array and take only the first item
-                            try
-                            {
-                                var imageArray = JsonSerializer.Deserialize<List<ContentRelatedItem>>(pageImageJson);
-                                if (imageArray != null && imageArray.Count > 0)
-                                {
-                                    // Create a new array with only the first image
-                                    var firstImageArray = new List<ContentRelatedItem> { imageArray[0] };
-                                    newContentItemData[kenticoFieldName] = JsonSerializer.Serialize(firstImageArray);
-                                    logger.LogDebug("TaxManualItem PageImage: Selected first image from array of {Count} images", imageArray.Count);
-                                }
-                                else if (!string.IsNullOrWhiteSpace(pageImageJson) && !pageImageJson.Equals("[]"))
-                                {
-                                    // If it's not empty but couldn't parse as array, use as is
-                                    newContentItemData[kenticoFieldName] = pageImageJson;
-                                }
-                            }
-                            catch (JsonException)
-                            {
-                                // If JSON parsing fails, use the original value
-                                if (!string.IsNullOrWhiteSpace(pageImageJson) && !pageImageJson.Equals("[]"))
-                                {
-                                    newContentItemData[kenticoFieldName] = pageImageJson;
-                                }
-                            }
                         }
 
                         continue; // Skip the normal field mapping logic for this field
@@ -788,7 +905,7 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                         kenticoFieldName == "LocationState" ||
                         kenticoFieldName == "LocationZip"))
                     {
-                        if (contentItemData.TryGetValue("Address", out object? addressValue) && addressValue != null)
+                        if (contentItemData.TryGetValue("Address", out object? addressValue) && addressValue != null && !string.IsNullOrWhiteSpace(addressValue.ToString()))
                         {
                             try
                             {
@@ -824,6 +941,82 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                     }
 
                     // Special handling for Event ShowEventTime to AllDayEvent (invert the boolean)
+                    if (sitefinityFieldName.Contains("Image") || sitefinityFieldName.Contains("Photo"))
+                    {
+                        if (contentItemData.TryGetValue(sitefinityFieldName, out object? imageValue) && imageValue != null && !string.IsNullOrWhiteSpace(imageValue.ToString()))
+                        {
+                            string imageJson = imageValue.ToString() ?? string.Empty;
+
+                            try
+                            {
+                                // First, try to parse as an array of ContentRelatedItem (existing format)
+                                var imageReferences = JsonSerializer.Deserialize<List<ContentRelatedItem>>(imageJson);
+                                if (imageReferences != null && imageReferences.Count > 0)
+                                {
+                                    // Convert to format with only Identifier property (no WebPageGuid)
+                                    var imageItems = imageReferences
+                                        .Where(item => item.Identifier != Guid.Empty)
+                                        .Select(item => new { item.Identifier })
+                                        .ToList();
+
+                                    newContentItemData[kenticoFieldName] = JsonSerializer.Serialize(imageItems);
+                                    logger.LogDebug("Image field: Converted {Count} image references to Identifier-only format", imageItems.Count);
+                                }
+                                else if (!string.IsNullOrWhiteSpace(imageJson) && !imageJson.Equals("[]"))
+                                {
+                                    // If it's not empty but couldn't parse as array, use as is
+                                    newContentItemData[kenticoFieldName] = imageJson;
+                                }
+                            }
+                            catch (JsonException)
+                            {
+                                try
+                                {
+                                    // If array parsing fails, try to parse as a single media object
+                                    using var doc = JsonDocument.Parse(imageJson);
+                                    var root = doc.RootElement;
+
+                                    // Check if this is a single media object with an Id property
+                                    if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("Id", out var idElement))
+                                    {
+                                        string? idString = idElement.GetString();
+                                        if (!string.IsNullOrEmpty(idString) && Guid.TryParse(idString, out var mediaId))
+                                        {
+                                            // Convert single media object to ContentRelatedItem format
+                                            var singleImageItem = new[] { new { Identifier = mediaId } };
+                                            newContentItemData[kenticoFieldName] = JsonSerializer.Serialize(singleImageItem);
+                                            logger.LogDebug("Image field: Converted single media object with ID {MediaId} to Identifier format", mediaId);
+                                        }
+                                        else
+                                        {
+                                            logger.LogWarning("Image field: Could not parse media ID from single media object for {FieldName}", sitefinityFieldName);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        // If JSON parsing fails completely, use the original value
+                                        if (!string.IsNullOrWhiteSpace(imageJson) && !imageJson.Equals("[]"))
+                                        {
+                                            newContentItemData[kenticoFieldName] = imageJson;
+                                        }
+                                    }
+                                }
+                                catch (JsonException ex)
+                                {
+                                    logger.LogWarning(ex, "Image field: Failed to parse image JSON for field {FieldName}. Using original value.", sitefinityFieldName);
+                                    // If all parsing fails, use the original value
+                                    if (!string.IsNullOrWhiteSpace(imageJson) && !imageJson.Equals("[]"))
+                                    {
+                                        newContentItemData[kenticoFieldName] = imageJson;
+                                    }
+                                }
+                            }
+                        }
+
+                        continue; // Skip the normal field mapping logic for this field
+                    }
+
+                    // Special handling for Event ShowEventTime to AllDayEvent (invert the boolean)
                     if (typeNameWithoutNamespace == "Event" && sitefinityFieldName == "AllDayEvent")
                     {
                         if (contentItemData.TryGetValue("ShowEventTime", out object? showEventTimeValue) && showEventTimeValue != null)
@@ -844,10 +1037,9 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
 
                     // Special handling for page reference fields to use WebPageGuid instead of Identifier
                     // Keep ONLY true page-reference fields here. Do NOT convert MagazineIssue -> Sponsors.
-                    if ((typeNameWithoutNamespace == "MagazineArticle" && sitefinityFieldName == "ArticleAuthor") ||
-                        (typeNameWithoutNamespace == "CompendiumIssue" && sitefinityFieldName == "Authors"))
+                    if (typeNameWithoutNamespace == "MagazineIssue" && sitefinityFieldName == "Sponsors")
                     {
-                        if (contentItemData.TryGetValue(sitefinityFieldName, out object? pageReferencesValue) && pageReferencesValue != null)
+                        if (contentItemData.TryGetValue(sitefinityFieldName, out object? pageReferencesValue) && pageReferencesValue != null && !string.IsNullOrWhiteSpace(pageReferencesValue.ToString()))
                         {
                             string pageReferencesJson = pageReferencesValue.ToString() ?? string.Empty;
 
@@ -857,14 +1049,23 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                                 if (pageReferences != null && pageReferences.Count > 0)
                                 {
                                     // Convert from Identifier to WebPageGuid format for page references
+                                    // Filter out empty GUIDs to prevent UMT errors
                                     var webPageReferences = pageReferences
                                         .Where(item => item.Identifier != Guid.Empty)
-                                        .Select(item => new { WebPageGuid = item.Identifier })
+                                        .Select(item => new { item.Identifier })
                                         .ToList();
 
-                                    newContentItemData[kenticoFieldName] = JsonSerializer.Serialize(webPageReferences);
-                                    logger.LogDebug("{ContentType} {FieldName}: Converted {Count} page references from Identifier to WebPageGuid format",
-                                        typeNameWithoutNamespace, sitefinityFieldName, webPageReferences.Count);
+                                    if (webPageReferences.Count > 0)
+                                    {
+                                        newContentItemData[kenticoFieldName] = JsonSerializer.Serialize(webPageReferences);
+                                        logger.LogDebug("{ContentType} {FieldName}: Converted {Count} page references from Identifier to WebPageGuid format (filtered out {FilteredCount} empty GUIDs)",
+                                            typeNameWithoutNamespace, sitefinityFieldName, webPageReferences.Count, pageReferences.Count - webPageReferences.Count);
+                                    }
+                                    else
+                                    {
+                                        logger.LogInformation("{ContentType} {FieldName}: All {Count} page references had empty GUIDs - field will be empty",
+                                            typeNameWithoutNamespace, sitefinityFieldName, pageReferences.Count);
+                                    }
                                 }
                                 else if (!string.IsNullOrWhiteSpace(pageReferencesJson) && !pageReferencesJson.Equals("[]", StringComparison.Ordinal))
                                 {
@@ -872,8 +1073,62 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                                     newContentItemData[kenticoFieldName] = pageReferencesJson;
                                 }
                             }
-                            catch (JsonException)
+                            catch (JsonException ex)
                             {
+                                logger.LogWarning(ex, "{ContentType} {FieldName}: Failed to parse page references JSON. Using original value.", typeNameWithoutNamespace, sitefinityFieldName);
+                                // If JSON parsing fails, use the original value
+                                if (!string.IsNullOrWhiteSpace(pageReferencesJson) && !pageReferencesJson.Equals("[]", StringComparison.Ordinal))
+                                {
+                                    newContentItemData[kenticoFieldName] = pageReferencesJson;
+                                }
+                            }
+                        }
+
+                        continue; // Skip the normal field mapping logic for this field
+                    }
+
+                    // Special handling for page reference fields to use WebPageGuid instead of Identifier
+                    // Keep ONLY true page-reference fields here. Do NOT convert MagazineIssue -> Sponsors.
+                    if ((typeNameWithoutNamespace == "MagazineArticle" && sitefinityFieldName == "ArticleAuthor") ||
+                        (typeNameWithoutNamespace == "CompendiumIssue" && sitefinityFieldName == "Authors"))
+                    {
+                        if (contentItemData.TryGetValue(sitefinityFieldName, out object? pageReferencesValue) && pageReferencesValue != null && !string.IsNullOrWhiteSpace(pageReferencesValue.ToString()))
+                        {
+                            string pageReferencesJson = pageReferencesValue.ToString() ?? string.Empty;
+
+                            try
+                            {
+                                var pageReferences = JsonSerializer.Deserialize<List<ContentRelatedItem>>(pageReferencesJson);
+                                if (pageReferences != null && pageReferences.Count > 0)
+                                {
+                                    // Convert from Identifier to WebPageGuid format for page references
+                                    // Filter out empty GUIDs to prevent UMT errors
+                                    var webPageReferences = pageReferences
+                                        .Where(item => item.Identifier != Guid.Empty)
+                                        .Select(item => new { WebPageGuid = item.Identifier })
+                                        .ToList();
+
+                                    if (webPageReferences.Count > 0)
+                                    {
+                                        newContentItemData[kenticoFieldName] = JsonSerializer.Serialize(webPageReferences);
+                                        logger.LogDebug("{ContentType} {FieldName}: Converted {Count} page references from Identifier to WebPageGuid format (filtered out {FilteredCount} empty GUIDs)",
+                                            typeNameWithoutNamespace, sitefinityFieldName, webPageReferences.Count, pageReferences.Count - webPageReferences.Count);
+                                    }
+                                    else
+                                    {
+                                        logger.LogInformation("{ContentType} {FieldName}: All {Count} page references had empty GUIDs - field will be empty",
+                                            typeNameWithoutNamespace, sitefinityFieldName, pageReferences.Count);
+                                    }
+                                }
+                                else if (!string.IsNullOrWhiteSpace(pageReferencesJson) && !pageReferencesJson.Equals("[]", StringComparison.Ordinal))
+                                {
+                                    // If it's not empty but couldn't parse as array, use as is
+                                    newContentItemData[kenticoFieldName] = pageReferencesJson;
+                                }
+                            }
+                            catch (JsonException ex)
+                            {
+                                logger.LogWarning(ex, "{ContentType} {FieldName}: Failed to parse page references JSON. Using original value.", typeNameWithoutNamespace, sitefinityFieldName);
                                 // If JSON parsing fails, use the original value
                                 if (!string.IsNullOrWhiteSpace(pageReferencesJson) && !pageReferencesJson.Equals("[]", StringComparison.Ordinal))
                                 {
@@ -962,7 +1217,8 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                 {
                     UrlPath = pageUrl.TrimStart('/'),
                     LanguageName = culture.ContentLanguageName,
-                    PathIsDraft = false
+                    PathIsDraft = false,
+                    PathIsLatest = true
                 });
             }
             else
@@ -975,7 +1231,8 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                     {
                         UrlPath = culture.ContentLanguageName + pageUrl,
                         LanguageName = culture.ContentLanguageName,
-                        PathIsDraft = false
+                        PathIsDraft = false,
+                        PathIsLatest = true
                     });
 
                     continue;
@@ -985,7 +1242,8 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                 {
                     UrlPath = GetUrl(alternateLanguageContentItem, rootPath, pagePath).TrimStart('/'),
                     LanguageName = culture.ContentLanguageName,
-                    PathIsDraft = false
+                    PathIsDraft = false,
+                    PathIsLatest = true
                 });
             }
         }
@@ -1222,22 +1480,72 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
     {
         try
         {
+            // Validate both inputs are valid JSON before attempting to merge
+            if (!IsValidJson(array1) || !IsValidJson(array2))
+            {
+                // Return the valid one, or the first if both are invalid
+                if (IsValidJson(array1))
+                {
+                    return FilterTaxonomyItems(array1);
+                }
+                if (IsValidJson(array2))
+                {
+                    return FilterTaxonomyItems(array2);
+                }
+                return "[]"; // Return empty array if both are invalid
+            }
+
             var items1 = JsonSerializer.Deserialize<List<ContentRelatedItem>>(array1) ?? [];
             var items2 = JsonSerializer.Deserialize<List<ContentRelatedItem>>(array2) ?? [];
 
             // Combine and remove duplicates based on Identifier
             var mergedItems = items1
                 .Concat(items2)
+                .Where(item => item.Identifier != Guid.Empty) // Only include valid identifiers
                 .GroupBy(item => item.Identifier)
                 .Select(group => group.First())
                 .ToList();
 
-            return JsonSerializer.Serialize(mergedItems);
+            // For taxonomy items, we only need the Identifier, not WebPageGuid
+            var taxonomyItems = mergedItems.Select(item => new { item.Identifier }).ToList();
+
+            return JsonSerializer.Serialize(taxonomyItems);
         }
         catch (JsonException)
         {
             // If JSON parsing fails, return the first array as fallback
-            return array1;
+            return IsValidJson(array1) ? FilterTaxonomyItems(array1) : "[]";
+        }
+        catch (Exception)
+        {
+            // For any other exception, return empty array
+            return "[]";
+        }
+    }
+
+    /// <summary>
+    /// Filters taxonomy items to only include Identifier property and exclude null WebPageGuids
+    /// </summary>
+    /// <param name="jsonArray">JSON array of taxonomy items</param>
+    /// <returns>Filtered JSON array with only Identifier properties</returns>
+    private static string FilterTaxonomyItems(string jsonArray)
+    {
+        try
+        {
+            var items = JsonSerializer.Deserialize<List<ContentRelatedItem>>(jsonArray) ?? [];
+
+            // Filter out items with empty Identifier and convert to taxonomy format (Identifier only)
+            var taxonomyItems = items
+                .Where(item => item.Identifier != Guid.Empty)
+                .Select(item => new { item.Identifier })
+                .ToList();
+
+            return JsonSerializer.Serialize(taxonomyItems);
+        }
+        catch (JsonException)
+        {
+            // If parsing fails, return original or empty array
+            return IsValidJson(jsonArray) ? jsonArray : "[]";
         }
     }
 
@@ -1263,4 +1571,27 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                 }
                 return false;
             }));
+
+    /// <summary>
+    /// Validates if a string is valid JSON
+    /// </summary>
+    /// <param name="json">The string to validate</param>
+    /// <returns>True if the string is valid JSON, false otherwise</returns>
+    private static bool IsValidJson(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return false;
+        }
+
+        try
+        {
+            JsonDocument.Parse(json);
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+    }
 }

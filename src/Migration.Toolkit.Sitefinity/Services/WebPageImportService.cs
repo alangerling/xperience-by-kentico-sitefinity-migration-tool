@@ -11,6 +11,8 @@ using Migration.Toolkit.Sitefinity.Core.Helpers;
 using Migration.Toolkit.Sitefinity.Core.Services;
 using Migration.Toolkit.Sitefinity.Model;
 
+using Progress.Sitefinity.RestSdk.Dto;
+
 namespace Migration.Toolkit.Sitefinity.Services
 {
     internal class WebPageImportService(
@@ -76,7 +78,37 @@ namespace Migration.Toolkit.Sitefinity.Services
                 {
                     var items = contentProvider.GetContentItems(typeDefs, currentSite.SystemCultures);
 
-                    foreach (var item in items)
+                    // Filter NewsItems using the same rules as content import (published, ELFA rules, backend user)
+                    var adminGuid = !string.IsNullOrEmpty(importConfiguration.SitefinityAdminUserGuid)
+                        ? Guid.Parse(importConfiguration.SitefinityAdminUserGuid)
+                        : Guid.Parse("6415B8CE-8072-4BCD-8E48-9D7178B826B7");
+
+                    var filtered = items.Where(item =>
+                    {
+                        if (string.Equals(item.TypeName, "NewsItem", StringComparison.OrdinalIgnoreCase))
+                        {
+                            bool isPublished = HasPublishedStatus(item);
+                            if (!isPublished)
+                            {
+                                return false;
+                            }
+
+                            if (!IsElfaNewsItem(item))
+                            {
+                                return false;
+                            }
+
+                            bool isBackendUser = dependenciesModel.Users.ContainsKey(item.Owner) || item.Owner == adminGuid;
+                            if (!isBackendUser)
+                            {
+                                return false;
+                            }
+                        }
+
+                        return true;
+                    });
+
+                    foreach (var item in filtered)
                     {
                         if (string.IsNullOrWhiteSpace(item.ItemDefaultUrl) || string.IsNullOrWhiteSpace(item.TypeName))
                         {
@@ -167,6 +199,49 @@ namespace Migration.Toolkit.Sitefinity.Services
                 ImportedModels = pages.ToDictionary(x => x.ContentItemGUID),
                 Observer = kenticoImportService.StartImport(pages, observer)
             };
+        }
+
+        private static bool HasPublishedStatus(ContentItem item)
+        {
+            try
+            {
+                if (item is SdkItem sdkItem)
+                {
+                    if (sdkItem.TryGetValue("Status", out int statusValue))
+                    {
+                        return statusValue == 2;
+                    }
+
+                    if (sdkItem.TryGetValue("Status", out string? statusString) && int.TryParse(statusString, out int parsedStatus))
+                    {
+                        return parsedStatus == 2;
+                    }
+                }
+
+                return true;
+            }
+            catch
+            {
+                return true;
+            }
+        }
+
+        private bool IsElfaNewsItem(ContentItem newsItem)
+        {
+            string? organization = newsItem.GetValue<string>("Organization")?.Trim();
+            string? email = newsItem.GetValue<string>("Email")?.Trim();
+
+            bool organizationMatches = string.IsNullOrWhiteSpace(organization) ||
+                                     organization.Equals("ELFA", StringComparison.OrdinalIgnoreCase) ||
+                                     organization.Equals("Equipment Leasing & Finance Magazine", StringComparison.OrdinalIgnoreCase) ||
+                                     organization.Equals("Equipment Leasing & Finance Foundation", StringComparison.OrdinalIgnoreCase);
+
+            bool emailMatches = string.IsNullOrWhiteSpace(email) ||
+                              email.Contains("elfaonline.org", StringComparison.OrdinalIgnoreCase) ||
+                              email.Contains("leasefoundation.org", StringComparison.OrdinalIgnoreCase) ||
+                              email.Contains("equipmentfinanceadvantage.org", StringComparison.OrdinalIgnoreCase);
+
+            return organizationMatches && emailMatches;
         }
     }
 }

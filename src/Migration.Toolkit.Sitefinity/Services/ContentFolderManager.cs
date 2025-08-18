@@ -123,6 +123,32 @@ internal class ContentFolderManager(ILogger<ContentFolderManager> logger)
     /// </summary>
     public void ClearCreatedFolders() => createdFoldersDictionary.Clear();
 
+    /// <summary>
+    /// Trims the display name by removing "-and" and ensuring it doesn't exceed 50 characters.
+    /// </summary>
+    /// <param name="displayName">The original display name</param>
+    /// <returns>A display name with "-and" removed and truncated to 50 characters if needed</returns>
+    private static string TrimDisplayName(string displayName)
+    {
+        const int maxDisplayNameLength = 50;
+
+        if (string.IsNullOrEmpty(displayName))
+        {
+            return displayName;
+        }
+
+        // Replace "-and" with blank space
+        string cleanedDisplayName = displayName.Replace("-and-", "-");
+
+        if (cleanedDisplayName.Length <= maxDisplayNameLength)
+        {
+            return cleanedDisplayName;
+        }
+
+        // Truncate to 50 characters without any suffix
+        return cleanedDisplayName[..maxDisplayNameLength];
+    }
+
     private ContentFolderModel GetOrCreateRootFolder(string rootFolderName, IDictionary<Guid, ContentFolderModel> allAvailableFolders)
     {
         string rootFolderPath = $"/{rootFolderName}";
@@ -136,11 +162,14 @@ internal class ContentFolderManager(ILogger<ContentFolderManager> logger)
         // Create globally unique code name for root folder within 50 character limit
         string globallyUniqueCodeName = GenerateUniqueCodeName(rootFolderPath, $"root_{rootFolderName}");
 
+        // Trim display name to ensure it doesn't exceed 50 characters
+        string trimmedDisplayName = TrimDisplayName(rootFolderName);
+
         // Create new root folder
         var newRootFolder = new ContentFolderModel
         {
             ContentFolderGUID = Guid.NewGuid(),
-            ContentFolderDisplayName = rootFolderName,
+            ContentFolderDisplayName = trimmedDisplayName, // Use trimmed display name
             ContentFolderName = globallyUniqueCodeName, // Use globally unique code name within 50 char limit
             ContentFolderTreePath = rootFolderPath,
             ContentFolderParentFolderGUID = null // Root level folder
@@ -164,10 +193,13 @@ internal class ContentFolderManager(ILogger<ContentFolderManager> logger)
 
         string globallyUniqueCodeName = GenerateUniqueCodeName(rootFolderPath, $"root_{rootFolderName}");
 
+        // Trim display name to ensure it doesn't exceed 50 characters
+        string trimmedDisplayName = TrimDisplayName(rootFolderName);
+
         var newRootFolder = new ContentFolderModel
         {
             ContentFolderGUID = Guid.NewGuid(),
-            ContentFolderDisplayName = rootFolderName,
+            ContentFolderDisplayName = trimmedDisplayName, // Use trimmed display name
             ContentFolderName = globallyUniqueCodeName,
             ContentFolderTreePath = rootFolderPath,
             ContentFolderParentFolderGUID = null
@@ -271,11 +303,14 @@ internal class ContentFolderManager(ILogger<ContentFolderManager> logger)
             return existingFolder;
         }
 
+        // Trim display name to ensure it doesn't exceed 50 characters
+        string trimmedDisplayName = TrimDisplayName(folderName);
+
         // Create new subfolder with generated GUID and parent reference
         var newSubfolder = new ContentFolderModel
         {
             ContentFolderGUID = Guid.NewGuid(),
-            ContentFolderDisplayName = folderName, // Keep original display name
+            ContentFolderDisplayName = trimmedDisplayName, // Use trimmed display name
             ContentFolderName = codeName, // Unique code name <= 50 chars
             ContentFolderTreePath = fullFolderPath,
             ContentFolderParentFolderGUID = parentFolder.ContentFolderGUID
@@ -349,6 +384,7 @@ internal class ContentFolderManager(ILogger<ContentFolderManager> logger)
         bool isDownload = downloadFileExtensions.Contains(mediaItem.Extension?.ToLowerInvariant());
         return isDownload;
     }
+
     /// <summary>
     /// Adds multiple folders to the createdFoldersDictionary.
     /// </summary>
