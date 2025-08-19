@@ -45,12 +45,12 @@
       },
       "Progress.Sitefinity.RestSdk": {
         "type": "Direct",
-        "requested": "[14.4.8138.1, )",
-        "resolved": "14.4.8138.1",
-        "contentHash": "efn+ji8yp1Ky2TnSYer3tKvi3+iFofVSjx+rr7KmxqaT+C00ALBrhkniaXxPRDErP3sywLkQwEYCVuTNwHmqGQ==",
+        "requested": "[15.3.8523.67, )",
+        "resolved": "15.3.8523.67",
+        "contentHash": "MyHz0vG8eM14DNoOl6MJEJSxY2CI2+Wd7VXsKQMkflLvU1qYsJf0IFpAZgg/v1CFtFnIvToujeKTnekshkCAWw==",
         "dependencies": {
           "Microsoft.Net.Http.Headers": "2.2.8",
-          "Newtonsoft.Json": "13.0.2"
+          "Newtonsoft.Json": "13.0.3"
         }
       },
       "SonarAnalyzer.CSharp": {
@@ -349,8 +349,8 @@
       },
       "Newtonsoft.Json": {
         "type": "Transitive",
-        "resolved": "13.0.2",
-        "contentHash": "R2pZ3B0UjeyHShm9vG+Tu0EBb2lC8b0dFzV9gVn50ofHXh9Smjk6kTn7A/FdAsC8B5cKib1OnGYOXxRBz5XQDg=="
+        "resolved": "13.0.3",
+        "contentHash": "HrC5BXdl00IP9zeV+0Z848QWPAoCr9P3bDEZguI+gkLcBKAOxix/tLEAAHC+UvDNPv4a2d18lOReHMOagPa+zQ=="
       },
       "System.Buffers": {
         "type": "Transitive",

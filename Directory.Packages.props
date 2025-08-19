@@ -23,7 +23,7 @@
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.7" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="9.0.7" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="9.0.7" />
-    <PackageVersion Include="Progress.Sitefinity.RestSdk" Version="14.4.8138.1" />
+    <PackageVersion Include="Progress.Sitefinity.RestSdk" Version="15.3.8523.67" />
     <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.13.0.120203" />
   </ItemGroup>
 </Project>

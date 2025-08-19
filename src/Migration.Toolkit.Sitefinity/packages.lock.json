@@ -552,7 +552,7 @@
           "Microsoft.EntityFrameworkCore": "[9.0.7, )",
           "Microsoft.EntityFrameworkCore.SqlServer": "[9.0.7, )",
           "Microsoft.Extensions.Http": "[9.0.7, )",
-          "Progress.Sitefinity.RestSdk": "[14.4.8138.1, )"
+          "Progress.Sitefinity.RestSdk": "[15.3.8523.67, )"
         }
       },
       "AngleSharp": {
@@ -630,12 +630,12 @@
       },
       "Progress.Sitefinity.RestSdk": {
         "type": "CentralTransitive",
-        "requested": "[14.4.8138.1, )",
-        "resolved": "14.4.8138.1",
-        "contentHash": "efn+ji8yp1Ky2TnSYer3tKvi3+iFofVSjx+rr7KmxqaT+C00ALBrhkniaXxPRDErP3sywLkQwEYCVuTNwHmqGQ==",
+        "requested": "[15.3.8523.67, )",
+        "resolved": "15.3.8523.67",
+        "contentHash": "MyHz0vG8eM14DNoOl6MJEJSxY2CI2+Wd7VXsKQMkflLvU1qYsJf0IFpAZgg/v1CFtFnIvToujeKTnekshkCAWw==",
         "dependencies": {
           "Microsoft.Net.Http.Headers": "2.2.8",
-          "Newtonsoft.Json": "13.0.2"
+          "Newtonsoft.Json": "13.0.3"
         }
       }
     }
