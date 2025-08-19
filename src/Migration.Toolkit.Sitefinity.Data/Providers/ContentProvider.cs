@@ -368,6 +368,10 @@ internal class ContentProvider(IRestClient restClient, ILogger<ContentProvider> 
 
             foreach (string fullPath in sortedRequiredPaths)
             {
+                if(string.IsNullOrWhiteSpace(fullPath) || fullPath.Trim('/') == "")
+                {
+                    continue; // Skip empty paths
+                }
                 string[] segments = fullPath.Trim('/').Split('/');
                 string currentPath = "";
                 Guid? parentId = null;
