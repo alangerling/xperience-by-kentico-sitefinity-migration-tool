@@ -287,10 +287,12 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                     { "LocationCity", "LocationCity" },
                     { "LocationState", "LocationState" },
                     { "LocationZip", "LocationPostalCode" },
+                    { "EventPrograms", "Programs" },
                     { "EventSponsorCopyHtml", "SponsorContent" },
                     { "EventLocationCopyHtml", "LocationContent" },
                     { "EventScheduleCopyHtml", "ScheduleContent" },
                     { "EventSpeakerCopyHtml", "SpeakerContent" },
+                    { "EventRegistrationCopyHtml", "RegistrationContent" },
                     { "EventPolicyCopyHtml", "PolicyContent" },
                     { "EventExhibitorCopyHtml", "ExhibitorContent" },
                     { "PageImage", "Image" },
@@ -1019,16 +1021,14 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                     // Special handling for Event ShowEventTime to AllDayEvent (invert the boolean)
                     if (typeNameWithoutNamespace == "Event" && sitefinityFieldName == "AllDayEvent")
                     {
-                        if (contentItemData.TryGetValue("ShowEventTime", out object? showEventTimeValue) && showEventTimeValue != null)
+                        if (contentItemData.TryGetValue("AllDayEvent", out object? allDayEventValue) && allDayEventValue != null)
                         {
                             // Invert the ShowEventTime value for AllDayEvent
-                            bool showEventTime = ValidationHelper.GetBoolean(showEventTimeValue, false);
-                            bool allDayEvent = !showEventTime;
-                            newContentItemData[kenticoFieldName] = allDayEvent;
+                            bool allDayEvent = ValidationHelper.GetBoolean(allDayEventValue, false);
+                            newContentItemData[kenticoFieldName] = !allDayEvent;
                         }
                         else
                         {
-                            // Default to false if ShowEventTime is not set (meaning it's not an all-day event)
                             newContentItemData[kenticoFieldName] = false;
                         }
 
@@ -1038,6 +1038,55 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                     // Special handling for page reference fields to use WebPageGuid instead of Identifier
                     // Keep ONLY true page-reference fields here. Do NOT convert MagazineIssue -> Sponsors.
                     if (typeNameWithoutNamespace == "MagazineIssue" && sitefinityFieldName == "Sponsors")
+                    {
+                        if (contentItemData.TryGetValue(sitefinityFieldName, out object? pageReferencesValue) && pageReferencesValue != null && !string.IsNullOrWhiteSpace(pageReferencesValue.ToString()))
+                        {
+                            string pageReferencesJson = pageReferencesValue.ToString() ?? string.Empty;
+
+                            try
+                            {
+                                var pageReferences = JsonSerializer.Deserialize<List<ContentRelatedItem>>(pageReferencesJson);
+                                if (pageReferences != null && pageReferences.Count > 0)
+                                {
+                                    // Convert from Identifier to WebPageGuid format for page references
+                                    // Filter out empty GUIDs to prevent UMT errors
+                                    var webPageReferences = pageReferences
+                                        .Where(item => item.Identifier != Guid.Empty)
+                                        .Select(item => new { item.Identifier })
+                                        .ToList();
+
+                                    if (webPageReferences.Count > 0)
+                                    {
+                                        newContentItemData[kenticoFieldName] = JsonSerializer.Serialize(webPageReferences);
+                                        logger.LogDebug("{ContentType} {FieldName}: Converted {Count} page references from Identifier to WebPageGuid format (filtered out {FilteredCount} empty GUIDs)",
+                                            typeNameWithoutNamespace, sitefinityFieldName, webPageReferences.Count, pageReferences.Count - webPageReferences.Count);
+                                    }
+                                    else
+                                    {
+                                        logger.LogInformation("{ContentType} {FieldName}: All {Count} page references had empty GUIDs - field will be empty",
+                                            typeNameWithoutNamespace, sitefinityFieldName, pageReferences.Count);
+                                    }
+                                }
+                                else if (!string.IsNullOrWhiteSpace(pageReferencesJson) && !pageReferencesJson.Equals("[]", StringComparison.Ordinal))
+                                {
+                                    // If it's not empty but couldn't parse as array, use as is
+                                    newContentItemData[kenticoFieldName] = pageReferencesJson;
+                                }
+                            }
+                            catch (JsonException ex)
+                            {
+                                logger.LogWarning(ex, "{ContentType} {FieldName}: Failed to parse page references JSON. Using original value.", typeNameWithoutNamespace, sitefinityFieldName);
+                                // If JSON parsing fails, use the original value
+                                if (!string.IsNullOrWhiteSpace(pageReferencesJson) && !pageReferencesJson.Equals("[]", StringComparison.Ordinal))
+                                {
+                                    newContentItemData[kenticoFieldName] = pageReferencesJson;
+                                }
+                            }
+                        }
+
+                        continue; // Skip the normal field mapping logic for this field
+                    }
+                    if (typeNameWithoutNamespace == "ElfaEvent" && sitefinityFieldName == "Programs")
                     {
                         if (contentItemData.TryGetValue(sitefinityFieldName, out object? pageReferencesValue) && pageReferencesValue != null && !string.IsNullOrWhiteSpace(pageReferencesValue.ToString()))
                         {
