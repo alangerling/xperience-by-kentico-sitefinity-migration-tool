@@ -355,7 +355,19 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
             {
                 // Try to find the most specific listing page based on folders in ItemDefaultUrl (e.g., yyyy/mm/dd for news)
                 ContentItemSimplifiedModel? listingPage = null;
-                string candidateFolderPath = ExtractDateFolderPathFromItemUrl(source.ItemDefaultUrl);
+                string candidateFolderPath = string.Empty;
+
+                // Special handling for Event items to extract folder path from URL
+                if (source.TypeName == "Event")
+                {
+                    candidateFolderPath = ExtractEventFolderPathFromItemUrl(source.ItemDefaultUrl);
+                }
+                else
+                {
+                    // For NewsItems, try to extract date-based folder path
+                    candidateFolderPath = ExtractDateFolderPathFromItemUrl(source.ItemDefaultUrl);
+                }
+
                 if (!string.IsNullOrWhiteSpace(candidateFolderPath))
                 {
                     string candidatePath = $"{pageConfig.PageRootPath.TrimEnd('/')}/{candidateFolderPath}";
@@ -515,6 +527,37 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
         }
 
         return string.Empty;
+    }
+
+    /// <summary>
+    /// Extracts subfolder path from an event item's URL for organizing events under parent listing pages.
+    /// Removes the last URL segment (the event name) and returns the remaining path as the subfolder structure.
+    /// Example: "events/2025/conferences/tech-summit" returns "events/2025/conferences"
+    /// </summary>
+    /// <param name="itemDefaultUrl">The event item's default URL</param>
+    /// <returns>Subfolder path for the event or empty string if none</returns>
+    private static string ExtractEventFolderPathFromItemUrl(string? itemDefaultUrl)
+    {
+        if (string.IsNullOrWhiteSpace(itemDefaultUrl))
+        {
+            return string.Empty;
+        }
+
+        string relative = itemDefaultUrl.Trim();
+        if (Uri.TryCreate(relative, UriKind.Absolute, out var abs))
+        {
+            relative = abs.PathAndQuery;
+        }
+
+        relative = relative.Trim('/');
+
+        if (string.IsNullOrEmpty(relative))
+        {
+            return string.Empty;
+        }
+
+        int lastSlash = relative.LastIndexOf('/');
+        return lastSlash > 0 ? relative[..lastSlash] : string.Empty;
     }
 
     /// <summary>

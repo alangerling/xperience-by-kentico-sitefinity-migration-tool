@@ -48,7 +48,7 @@ namespace Migration.Toolkit.Sitefinity.Services
             var listingConfigs = importConfiguration.PageContentTypes?.Where(x => x.PageTemplateType == PageTemplateType.Listing).ToList() ?? [];
 
             // Only create hierarchies for these types (easily extend by adding more names)
-            var hierarchyTypes = new HashSet<string>(new[] { "NewsItem" }, StringComparer.OrdinalIgnoreCase);
+            var hierarchyTypes = new HashSet<string>(new[] { "NewsItem", "Event" }, StringComparer.OrdinalIgnoreCase);
             listingConfigs = listingConfigs.Where(cfg => hierarchyTypes.Contains(cfg.TypeName)).ToList();
 
             if (listingConfigs.Count > 0)
