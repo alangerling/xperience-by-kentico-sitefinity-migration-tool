@@ -30,9 +30,6 @@ internal class MediaModelAdapter(ILogger<MediaModelAdapter> logger,
 
     private ContentItemSimplifiedModel? AdaptMediaItem(Media sourceMediaItem, MediaFileDependencies mediaFileDependencies)
     {
-        // Add debugging information
-        Console.WriteLine($"=== PROCESSING MEDIA ITEM === ID: {sourceMediaItem.Id}, Title: {sourceMediaItem.Title}, UrlName: {sourceMediaItem.UrlName}, ItemDefaultUrl: {sourceMediaItem.ItemDefaultUrl}, Url: {sourceMediaItem.Url}, Extension: {sourceMediaItem.Extension}, TotalSize: {sourceMediaItem.TotalSize}, Description: {sourceMediaItem.Description}, CreatedBy: {sourceMediaItem.CreatedBy} ===============================");
-
         // Validate media item URL
         if (string.IsNullOrEmpty(sourceMediaItem.ItemDefaultUrl))
         {
@@ -76,8 +73,6 @@ internal class MediaModelAdapter(ILogger<MediaModelAdapter> logger,
             ContentFolders = mediaFileDependencies.ContentFolders
         };
         var targetFolderGuid = mediaFileDependencies.FolderManager.GetOrCreateOrganizedFolder(sourceMediaItem, folderDependencies);
-
-        Console.WriteLine($"MEDIA ITEM: {sourceMediaItem.ItemDefaultUrl} -> FOLDER GUID: {targetFolderGuid}");
 
         // Create asset URL
         // Create asset URL using the separate media download domain
@@ -125,7 +120,6 @@ internal class MediaModelAdapter(ILogger<MediaModelAdapter> logger,
             ContentItemContentFolderGUID = targetFolderGuid
         };
 
-        Console.WriteLine($"Successfully created content item: {adaptedContentItem.Name} with ContentTypeName: {adaptedContentItem.ContentTypeName}");
         return adaptedContentItem;
     }
 

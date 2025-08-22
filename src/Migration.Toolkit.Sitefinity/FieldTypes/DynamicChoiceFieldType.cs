@@ -44,7 +44,7 @@ public class DynamicChoiceFieldType : FieldTypeBase, IFieldType
                 CustomProperties = new Dictionary<string, object?>
                 {
                     { "MinSelectedTagsCount", sitefinityField.IsRequired ? "1" : "0" },
-                    { "TaxonomyGroup", JsonSerializer.Serialize(new[] { "88558805-D283-4F4A-8527-7EB4208B6C93" }) }
+                    { "TaxonomyGroup", JsonSerializer.Serialize(new[] { "BA7693AC-A405-4CF9-89B9-7D8C6495197B" }) }
                 }
             };
         }
@@ -56,7 +56,7 @@ public class DynamicChoiceFieldType : FieldTypeBase, IFieldType
                 CustomProperties = new Dictionary<string, object?>
                 {
                     { "MinSelectedTagsCount", sitefinityField.IsRequired ? "1" : "0" },
-                    { "TaxonomyGroup", JsonSerializer.Serialize(new[] { "17D42AEF-D1E1-4A95-8111-6DBA7D65CDE6" }) }
+                    { "TaxonomyGroup", JsonSerializer.Serialize(new[] { "BA7693AC-A405-4CF9-89B9-7D8C6495197B" }) }
                 }
             };
         }

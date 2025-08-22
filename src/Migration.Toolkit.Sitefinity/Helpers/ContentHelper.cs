@@ -163,6 +163,7 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                     { "PublicationAuthorPages", "ArticleAuthor" },
                     { "PageImage", "HeroImage" },
                     { "AdditionalCategories", "Category" },
+                    { "StandardCategory", "ELFAMagazineArticle" },
                 }
             }
         },
@@ -175,8 +176,8 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                 FieldMappings = new Dictionary<string, string>
                 {
                     { "PageTitle", "Title" },
-                    { "MagazineIssueMonth", "IssueMonth" },
-                    { "MagazineIssueYear", "IssueYear" },
+                    { "AdditionalCategories", "IssueMonth" },
+                    { "StandardCategory", "IssueYear" },
                     { "PageImage", "CoverImage" },
                     { "MagazineIssueSponsors", "Sponsors" },
                     { "PublicationDate", "PublicationDate" },
@@ -698,6 +699,14 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                         continue; // Skip the normal field mapping logic for this field
                     }
 
+                    if (typeNameWithoutNamespace == "MagazineArticle" && kenticoFieldName == "StandardCategory")
+                    {
+                        // Serialize taxonomy array with a single Identifier
+                        newContentItemData[kenticoFieldName] = JsonSerializer.Serialize(
+                            new object[] { new { Identifier = Guid.Parse("6129C525-EFE6-484D-90E3-7D00376D0902") } }
+                        );
+
+                    }
                     // Special handling for ElfaEvent, Event, and NewsItem to combine Category and Tags into AdditionalCategories
                     if (sitefinityFieldName == "Category")
                     {
@@ -869,6 +878,7 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                                     logger.LogWarning("Invalid JSON in articletypes field for {ContentType} {ItemUrl}. Skipping articletypes data.", typeNameWithoutNamespace, cultureSdkItem.UrlName);
                                 }
                             }
+
                             // Only add if we have category/tag data
                             if (!string.IsNullOrWhiteSpace(combinedCategories) && !combinedCategories.Equals("[]"))
                             {
@@ -919,7 +929,7 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                                     string? extractedValue = kenticoFieldName switch
                                     {
                                         "LocationAddress1" => addressData.TryGetProperty("Street", out var street) ? street.GetString() : null,
-                                        "LocationAddress2" => null, // Address2 is typically not in the basic address object
+                                        "LocationAddress2" => null,
                                         "LocationCity" => addressData.TryGetProperty("City", out var city) ? city.GetString() : null,
                                         "LocationState" => addressData.TryGetProperty("StateCode", out var state) ? state.GetString() : null,
                                         "LocationZip" => addressData.TryGetProperty("Zip", out var zip) ? zip.GetString() : null,
@@ -1338,17 +1348,50 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
             return url;
         }
 
+        string path = url;
+
         if (url.StartsWith('/'))
         {
-            return url;
+            path = url;
         }
-
-        if (Uri.TryCreate(url, UriKind.Absolute, out var absoluteUri))
+        else
         {
-            return absoluteUri.PathAndQuery;
+            if (Uri.TryCreate(url, UriKind.Absolute, out Uri? absoluteUri))
+            {
+                path = absoluteUri.PathAndQuery;
+            }
+            else
+            {
+                path = url;
+            }
         }
 
-        return url;
+        // Strip any occurrence of the folder segment "default-calendar" from the path
+        path = RemovePathSegment(path, "default-calendar");
+
+        return path;
+    }
+
+    private static string RemovePathSegment(string path, string segmentToRemove)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return path;
+        }
+
+        string query = string.Empty;
+        int qIndex = path.IndexOf('?', StringComparison.Ordinal);
+        if (qIndex >= 0)
+        {
+            query = path[qIndex..];
+            path = path[..qIndex];
+        }
+
+        // Normalize leading slash and split segments
+        string[] segments = path.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        string[] filtered = segments.Where(s => !s.Equals(segmentToRemove, StringComparison.OrdinalIgnoreCase)).ToArray();
+        string rebuilt = "/" + string.Join('/', filtered);
+        return rebuilt + query;
     }
 
     public string UpdateUrlsToPermanent(IMediaDependencies mediaDependencies, string html)

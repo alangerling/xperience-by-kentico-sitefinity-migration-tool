@@ -12,6 +12,7 @@ using Migration.Toolkit.Sitefinity.Configuration;
 using Migration.Toolkit.Sitefinity.Core.Helpers;
 using Migration.Toolkit.Sitefinity.Model;
 using Migration.Toolkit.Sitefinity.Services;
+using System.Text.Json;
 
 namespace Migration.Toolkit.Sitefinity.Adapters;
 internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedModelAdapter> logger,
@@ -26,6 +27,9 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
 
     private readonly Dictionary<int, Guid> stateContentItemGuids = [];
     private readonly Dictionary<Guid, Guid> magazineIssueContentItemGuids = [];
+
+    // Holds combined taxonomy tags (IssueMonth + IssueYear) for MagazineIssue items as JSON array of { Identifier }
+    private readonly Dictionary<Guid, string> magazineIssueAdditionalCategoryTags = [];
 
     /// <summary>
     /// Maps CompendiumAuthor IDs to their corresponding state folder paths.
@@ -303,6 +307,47 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
                 // Use the source ID as the key since child items will reference it via ParentId
                 magazineIssueContentItemGuids[source.Id] = source.Id;
 
+                // Capture IssueMonth (Category) and IssueYear (StandardCategory) as combined tags to be applied to child MagazineArticles
+                try
+                {
+                    var defaultLang = languageData.FirstOrDefault();
+                    string? issueMonthJson = null;
+                    string? issueYearJson = null;
+
+                    if (defaultLang?.ContentItemData != null)
+                    {
+                        if (defaultLang.ContentItemData.TryGetValue("Category", out object? catVal) && catVal is string catStr && !string.IsNullOrWhiteSpace(catStr) && !catStr.Equals("[]", StringComparison.Ordinal))
+                        {
+                            issueMonthJson = FilterTaxonomyItems(catStr);
+                        }
+                        if (defaultLang.ContentItemData.TryGetValue("StandardCategory", out object? priCatVal) && priCatVal is string priCatStr && !string.IsNullOrWhiteSpace(priCatStr) && !priCatStr.Equals("[]", StringComparison.Ordinal))
+                        {
+                            issueYearJson = FilterTaxonomyItems(priCatStr);
+                        }
+                    }
+
+                    string combined = "[]";
+                    if (!string.IsNullOrWhiteSpace(issueMonthJson) && !string.IsNullOrWhiteSpace(issueYearJson))
+                    {
+                        combined = MergeTaxonomyArrays(issueMonthJson!, issueYearJson!);
+                    }
+                    else if (!string.IsNullOrWhiteSpace(issueMonthJson))
+                    {
+                        combined = issueMonthJson!;
+                    }
+                    else if (!string.IsNullOrWhiteSpace(issueYearJson))
+                    {
+                        combined = issueYearJson!;
+                    }
+
+                    magazineIssueAdditionalCategoryTags[source.Id] = combined;
+                    logger.LogDebug("Stored MagazineIssue tags for Issue {IssueId}: {Tags}", source.Id, combined);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "Failed to capture IssueMonth/IssueYear tags for MagazineIssue {IssueId}.", source.Id);
+                }
+
                 logger.LogDebug("Stored MagazineIssue '{MagazineIssueTitle}' with ID {MagazineIssueId}",
                     source.Title, source.Id);
             }
@@ -325,6 +370,49 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
                     parentMagazineIssueGuid = Guid.Empty; // Reset to ensure fallback behavior
                 }
 
+                // If this is a MagazineArticle, enrich AdditionalCategories with parent's IssueMonth/IssueYear tags
+                if (string.Equals(source.TypeName, "MagazineArticle", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (parentMagazineIssueGuid != Guid.Empty && magazineIssueAdditionalCategoryTags.TryGetValue(parentMagazineIssueGuid, out string? issueTagsJson))
+                    {
+                        try
+                        {
+                            foreach (var lang in languageData)
+                            {
+                                if (lang.ContentItemData == null)
+                                {
+                                    continue;
+                                }
+
+                                lang.ContentItemData.TryGetValue("AdditionalCategories", out object? existingValueObj);
+                                string? existingJson = existingValueObj as string;
+
+                                string resultJson;
+                                if (!string.IsNullOrWhiteSpace(existingJson) && !existingJson.Equals("[]", StringComparison.Ordinal) && IsValidJson(existingJson))
+                                {
+                                    resultJson = MergeTaxonomyArrays(existingJson, issueTagsJson);
+                                }
+                                else
+                                {
+                                    resultJson = issueTagsJson;
+                                }
+
+                                lang.ContentItemData["AdditionalCategories"] = resultJson;
+                            }
+
+                            logger.LogInformation("Applied parent Issue tags to MagazineArticle {ArticleId} ({ArticleTitle}).", source.Id, source.Title);
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogWarning(ex, "Failed to merge Issue tags into MagazineArticle AdditionalCategories for {ArticleId}.", source.Id);
+                        }
+                    }
+                    else
+                    {
+                        logger.LogDebug("No stored Issue tags found for parent {ParentId} when processing MagazineArticle {ArticleId}.", parentMagazineIssueGuid, source.Id);
+                    }
+                }
+
                 // Create the child page data with the MagazineIssue as parent (if found)
                 var magazineChildPageData = new PageDataModel
                 {
@@ -336,6 +424,18 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
                             x.PageData.TreePath.Equals(pageConfig.PageRootPath, StringComparison.OrdinalIgnoreCase))?.ContentItemGUID ?? Guid.Empty),
                     TreePath = pageConfig.PageRootPath + (source.ItemDefaultUrl ?? string.Empty)
                 };
+
+                // Add Former URLs for MagazineArticle by replacing '/issue/article/' with '/issue/'
+                if (string.Equals(source.TypeName, "MagazineArticle", StringComparison.OrdinalIgnoreCase))
+                {
+                    var formerUrls = CreateMagazineFormerUrls(source, pageConfig.PageRootPath, dependenciesModel);
+                    if (formerUrls.Count > 0)
+                    {
+                        magazineChildPageData.PageFormerUrls = formerUrls;
+                        logger.LogInformation("MagazineArticle {ItemId} ({ItemTitle}) created with {FormerUrlCount} former URLs.",
+                            source.Id, source.Title, formerUrls.Count);
+                    }
+                }
 
                 var magazineChildContentItem = new ContentItemSimplifiedModel
                 {
@@ -404,6 +504,17 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
 
                     logger.LogInformation("NewsItem {ItemId} ({ItemTitle}) created with {FormerUrlCount} former URLs under parent page {ParentGuid}, TreePath: {TreePath}",
                         source.Id, source.Title, formerUrls.Count, listingPage.ContentItemGUID, listingChildPageData.TreePath);
+                }
+                // Add Former URLs for MagazineIssue by replacing '/issue/article/' with '/issue/'
+                else if (string.Equals(source.TypeName, "MagazineIssue", StringComparison.OrdinalIgnoreCase))
+                {
+                    var formerUrls = CreateMagazineFormerUrls(source, pageConfig.PageRootPath, dependenciesModel);
+                    if (formerUrls.Count > 0)
+                    {
+                        listingChildPageData.PageFormerUrls = formerUrls;
+                        logger.LogInformation("MagazineIssue {ItemId} ({ItemTitle}) created with {FormerUrlCount} former URLs.",
+                            source.Id, source.Title, formerUrls.Count);
+                    }
                 }
 
                 var listingChildPageContentItem = new ContentItemSimplifiedModel
@@ -543,6 +654,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
             return string.Empty;
         }
 
+        // Normalize via ContentHelper-like logic: strip default-calendar
         string relative = itemDefaultUrl.Trim();
         if (Uri.TryCreate(relative, UriKind.Absolute, out var abs))
         {
@@ -550,14 +662,18 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
         }
 
         relative = relative.Trim('/');
-
         if (string.IsNullOrEmpty(relative))
         {
             return string.Empty;
         }
 
-        int lastSlash = relative.LastIndexOf('/');
-        return lastSlash > 0 ? relative[..lastSlash] : string.Empty;
+        // Remove the specific segment 'default-calendar'
+        string[] parts = relative.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        string[] filtered = parts.Where(p => !p.Equals("default-calendar", StringComparison.OrdinalIgnoreCase)).ToArray();
+        string cleaned = string.Join('/', filtered);
+
+        int lastSlash = cleaned.LastIndexOf('/');
+        return lastSlash > 0 ? cleaned[..lastSlash] : string.Empty;
     }
 
     /// <summary>
@@ -647,5 +763,161 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
         }
 
         return formerUrls;
+    }
+
+    /// <summary>
+    /// Creates former URLs for MagazineIssue and MagazineArticle by replacing '/issue/article/' with '/issue/'.
+    /// Uses the PageRootPath and ItemDefaultUrl to compose the current path, then applies the replacement.
+    /// Handles default and alternate cultures similarly to news items.
+    /// </summary>
+    /// <param name="source">The MagazineIssue or MagazineArticle content</param>
+    /// <param name="magazineListingRootPath">The magazine listing root path (e.g., "/news-and-publications/magazine/issue/article")</param>
+    /// <param name="dependenciesModel">Content dependencies for language handling</param>
+    /// <returns>List of former URLs for the item</returns>
+    private List<PageFormerUrlModel> CreateMagazineFormerUrls(ContentItem source, string magazineListingRootPath, ContentDependencies dependenciesModel)
+    {
+        var formerUrls = new List<PageFormerUrlModel>();
+
+        if (string.IsNullOrWhiteSpace(source.ItemDefaultUrl))
+        {
+            logger.LogWarning("{ContentType} {ItemId} ({ItemTitle}) has no ItemDefaultUrl. Cannot create former URLs.",
+                source.TypeName, source.Id, source.Title);
+            return formerUrls;
+        }
+
+        var currentSite = contentHelper.GetCurrentSite();
+        if (currentSite == null)
+        {
+            logger.LogWarning("Current site not found. Cannot create former URLs for {ContentType} {ItemId}.",
+                source.TypeName, source.Id);
+            return formerUrls;
+        }
+
+        string itemUrl = source.ItemDefaultUrl.TrimStart('/');
+        string currentFullPath = $"{magazineListingRootPath.TrimEnd('/')}/{itemUrl}";
+        string formerPath = ReplaceIssueArticleSegment(currentFullPath).TrimStart('/');
+
+        foreach (var siteCulture in currentSite.SystemCultures)
+        {
+            var culture = dependenciesModel.ContentLanguages.Values.FirstOrDefault(x => x.ContentLanguageCultureFormat == siteCulture.Culture);
+            if (culture == null)
+            {
+                continue;
+            }
+
+            if (ValidationHelper.GetBoolean(culture.ContentLanguageIsDefault, false))
+            {
+                formerUrls.Add(new PageFormerUrlModel
+                {
+                    FormerUrlPath = formerPath,
+                    LanguageName = culture.ContentLanguageName
+                });
+            }
+            else
+            {
+                var alternateLanguageContentItem = source.AlternateLanguageContentItems.Find(x => x.Culture == culture.ContentLanguageCultureFormat);
+                if (alternateLanguageContentItem != null && !string.IsNullOrEmpty(alternateLanguageContentItem.Url))
+                {
+                    string altItemUrl = contentHelper.GetRelativeUrl(alternateLanguageContentItem.Url).TrimStart('/');
+                    string altCurrentFullPath = $"{magazineListingRootPath.TrimEnd('/')}/{altItemUrl}";
+                    string altFormerPath = ReplaceIssueArticleSegment(altCurrentFullPath).TrimStart('/');
+
+                    formerUrls.Add(new PageFormerUrlModel
+                    {
+                        FormerUrlPath = altFormerPath,
+                        LanguageName = culture.ContentLanguageName
+                    });
+                }
+                else
+                {
+                    // Fallback: prefix the culture name before the path
+                    formerUrls.Add(new PageFormerUrlModel
+                    {
+                        FormerUrlPath = $"{culture.ContentLanguageName}{(formerPath.StartsWith('/') ? string.Empty : "/")}{formerPath}".TrimStart('/'),
+                        LanguageName = culture.ContentLanguageName
+                    });
+                }
+            }
+        }
+
+        return formerUrls;
+    }
+
+    private static string ReplaceIssueArticleSegment(string input)
+    {
+        return input.Replace("/issue/article/", "/issue/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    // Helpers to merge taxonomy arrays for tags
+    private static string MergeTaxonomyArrays(string array1, string array2)
+    {
+        try
+        {
+            if (!IsValidJson(array1) || !IsValidJson(array2))
+            {
+                if (IsValidJson(array1))
+                {
+                    return FilterTaxonomyItems(array1);
+                }
+                if (IsValidJson(array2))
+                {
+                    return FilterTaxonomyItems(array2);
+                }
+                return "[]";
+            }
+
+            var items1 = JsonSerializer.Deserialize<List<ContentRelatedItem>>(array1) ?? [];
+            var items2 = JsonSerializer.Deserialize<List<ContentRelatedItem>>(array2) ?? [];
+
+            var mergedItems = items1
+                .Concat(items2)
+                .Where(item => item.Identifier != Guid.Empty)
+                .GroupBy(item => item.Identifier)
+                .Select(group => group.First())
+                .ToList();
+
+            var taxonomyItems = mergedItems.Select(item => new { item.Identifier }).ToList();
+
+            return JsonSerializer.Serialize(taxonomyItems);
+        }
+        catch
+        {
+            return IsValidJson(array1) ? FilterTaxonomyItems(array1) : "[]";
+        }
+    }
+
+    private static string FilterTaxonomyItems(string jsonArray)
+    {
+        try
+        {
+            var items = JsonSerializer.Deserialize<List<ContentRelatedItem>>(jsonArray) ?? [];
+            var taxonomyItems = items
+                .Where(item => item.Identifier != Guid.Empty)
+                .Select(item => new { item.Identifier })
+                .ToList();
+            return JsonSerializer.Serialize(taxonomyItems);
+        }
+        catch
+        {
+            return IsValidJson(jsonArray) ? jsonArray : "[]";
+        }
+    }
+
+    private static bool IsValidJson(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return false;
+        }
+
+        try
+        {
+            JsonDocument.Parse(json);
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 }

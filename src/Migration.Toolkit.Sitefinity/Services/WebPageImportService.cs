@@ -120,8 +120,11 @@ namespace Migration.Toolkit.Sitefinity.Services
                             continue;
                         }
 
+                        // Normalize URL and strip unwanted segments (e.g., default-calendar) before building hierarchy
+                        string normalizedUrl = contentHelper.GetRelativeUrl(item.ItemDefaultUrl ?? string.Empty);
+
                         // Extract folder segments (exclude last segment which is the page slug)
-                        string[] segments = item.ItemDefaultUrl.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+                        string[] segments = normalizedUrl.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
                         if (segments.Length <= 1)
                         {
                             continue; // no hierarchy
