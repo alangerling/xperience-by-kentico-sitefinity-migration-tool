@@ -88,4 +88,11 @@ public interface IContentHelper
     /// <param name="html">Html to be processed.</param>
     /// <returns>Html with media permanent urls where applicable.</returns>
     public string UpdateUrlsToPermanent(IMediaDependencies mediaDependencies, string html);
+
+    /// <summary>
+    /// Truncates the last URL segment if it exceeds the max length and adds a former URL entry per culture. Also adjusts the TreePath accordingly.
+    /// </summary>
+    /// <param name="pageData">Page data to update.</param>
+    /// <param name="maxSlugLength">Maximum allowed length for the last slug (default 50).</param>
+    public void EnforceMaxSlugLength(PageDataModel? pageData, int maxSlugLength = 50);
 }

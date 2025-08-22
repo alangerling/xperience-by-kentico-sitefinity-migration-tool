@@ -12,21 +12,29 @@ namespace Migration.Toolkit.Data.Providers;
 internal class ContentProvider(IRestClient restClient, ILogger<ContentProvider> logger, IDbContextFactory<SitefinityContext> sitefinityContext) : RestSdkBase(restClient), IContentProvider
 {
 
+    //import pages twice, not all find their parents the first run.
+    //include magazine authors when doing pages only import to get author pages else they wont find the /authros folder
+    //include magazine authors when magazine import also.
     private static readonly string[] allowedTypes = {
-        "MagazineIssue",
+        /* Include with PagesOnly import
         "MagazineAuthor",
-        "MagazineArticle",
+        */
+        /*
+        */
+        "MagazineAuthor",
+        "Program",
         "MagazineSponsor",
+        "MagazineIssue",
+        "MagazineArticle",
         "Event",
         "ElfaEvent",
         "Mlfi",
-        "Program",
         "FundingSourceProfile",
+        "NewsItem",
         "State",
         "TaxManualItem",
         "CompendiumIssue",
         "CompendiumAuthor",
-        "NewsItem",
     };
 
     private IEnumerable<SitefinityVersionChange>? versions;

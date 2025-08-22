@@ -1348,23 +1348,9 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
             return url;
         }
 
-        string path = url;
-
-        if (url.StartsWith('/'))
-        {
-            path = url;
-        }
-        else
-        {
-            if (Uri.TryCreate(url, UriKind.Absolute, out Uri? absoluteUri))
-            {
-                path = absoluteUri.PathAndQuery;
-            }
-            else
-            {
-                path = url;
-            }
-        }
+        string path = url.StartsWith('/')
+            ? url
+            : (Uri.TryCreate(url, UriKind.Absolute, out var absoluteUri) ? absoluteUri.PathAndQuery : url);
 
         // Strip any occurrence of the folder segment "default-calendar" from the path
         path = RemovePathSegment(path, "default-calendar");
@@ -1685,5 +1671,129 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
         {
             return false;
         }
+    }
+
+    // UPDATED: Sanitize all URL segments using URLHelper.GetSafeUrlPart and add former URLs when changed.
+    public void EnforceMaxSlugLength(PageDataModel? pageData, int maxSlugLength = 50)
+    {
+        if (pageData == null || pageData.PageUrls == null || pageData.PageUrls.Count == 0)
+        {
+            return;
+        }
+
+        // Ensure FormerUrls list exists
+        pageData.PageFormerUrls ??= [];
+
+        // Update each culture-specific URL if needed
+        for (int i = 0; i < pageData.PageUrls.Count; i++)
+        {
+            var urlModel = pageData.PageUrls[i];
+            if (string.IsNullOrWhiteSpace(urlModel.UrlPath))
+            {
+                continue;
+            }
+
+            string originalPath = urlModel.UrlPath.TrimStart('/');
+            string updatedPath = ApplySafeUrlParts(originalPath, pageData.PageGuid.GetValueOrDefault(), maxSlugLength, out bool changed);
+
+            if (changed)
+            {
+                // Add former URL mapping for this culture
+                pageData.PageFormerUrls.Add(new PageFormerUrlModel
+                {
+                    FormerUrlPath = originalPath,
+                    LanguageName = urlModel.LanguageName
+                });
+
+                // Apply sanitized path
+                urlModel.UrlPath = updatedPath;
+                pageData.PageUrls[i] = urlModel;
+            }
+        }
+
+        // Also sanitize the TreePath similarly
+        if (!string.IsNullOrWhiteSpace(pageData.TreePath))
+        {
+            string originalTree = pageData.TreePath.TrimStart('/');
+            string updatedTree = ApplySafeUrlParts(originalTree, pageData.PageGuid.GetValueOrDefault(), maxSlugLength, out bool treeChanged);
+            if (treeChanged)
+            {
+                pageData.TreePath = "/" + updatedTree.TrimStart('/');
+            }
+        }
+    }
+
+    private static string ApplySafeUrlParts(string path, Guid pageGuid, int maxSlugLength, out bool changed)
+    {
+        changed = false;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return path;
+        }
+
+        // Separate query if present (paths typically don't include queries, but handle generically)
+        string query = string.Empty;
+        int qIndex = path.IndexOf('?', StringComparison.Ordinal);
+        if (qIndex >= 0)
+        {
+            query = path[qIndex..];
+            path = path[..qIndex];
+        }
+
+        string[] segments = path.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (segments.Length == 0)
+        {
+            return path + query;
+        }
+
+        for (int s = 0; s < segments.Length; s++)
+        {
+            string segment = segments[s];
+
+            // Lowercase first to guarantee all URLs are lowercase
+            segment = segment.ToLowerInvariant();
+
+            string safe = URLHelper.GetSafeUrlPart(segment, false);
+            safe = safe.ToLowerInvariant();
+
+            // Only enforce max length on the last segment
+            if (s == segments.Length - 1 && safe.Length > maxSlugLength)
+            {
+                string guidPrefix = pageGuid.ToString("N")[..8].ToUpperInvariant();
+                string suffix = "-" + guidPrefix;
+                int available = Math.Max(0, maxSlugLength - suffix.Length);
+
+                // Cut at word boundary (hyphen) within available length
+                string candidate = safe.Length > available ? safe[..available] : safe;
+                int lastHyphen = candidate.LastIndexOf('-');
+                if (lastHyphen > 0)
+                {
+                    candidate = candidate[..lastHyphen];
+                }
+
+                // Strip trailing hyphens
+                candidate = candidate.TrimEnd('-');
+
+                // Ensure not empty before appending suffix
+                safe = string.IsNullOrEmpty(candidate) ? guidPrefix : candidate + suffix;
+
+                // If still somehow exceeds, hard trim to max
+                if (safe.Length > maxSlugLength)
+                {
+                    safe = safe[..maxSlugLength];
+                }
+            }
+
+            if (!string.Equals(segment, safe, StringComparison.Ordinal))
+            {
+                segments[s] = safe;
+                changed = true;
+            }
+        }
+
+        string rebuilt = string.Join('/', segments);
+        // Ensure the final path is lowercase as well
+        rebuilt = rebuilt.ToLowerInvariant();
+        return rebuilt + query;
     }
 }

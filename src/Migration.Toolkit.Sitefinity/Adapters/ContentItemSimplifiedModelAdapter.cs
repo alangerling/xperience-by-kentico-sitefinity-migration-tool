@@ -1,4 +1,5 @@
-﻿using CMS.ContentEngine;
+﻿using System.Text.Json;
+using CMS.ContentEngine;
 using CMS.Helpers;
 
 using Kentico.Xperience.UMT.Model;
@@ -12,7 +13,6 @@ using Migration.Toolkit.Sitefinity.Configuration;
 using Migration.Toolkit.Sitefinity.Core.Helpers;
 using Migration.Toolkit.Sitefinity.Model;
 using Migration.Toolkit.Sitefinity.Services;
-using System.Text.Json;
 
 namespace Migration.Toolkit.Sitefinity.Adapters;
 internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedModelAdapter> logger,
@@ -179,6 +179,9 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
                 TreePath = treePath
             };
 
+            // Enforce max slug and add former URL if truncated
+            contentHelper.EnforceMaxSlugLength(noPageConfigPageData);
+
             var noPageConfigPageContentItem = new ContentItemSimplifiedModel
             {
                 ContentItemGUID = source.Id,
@@ -234,14 +237,21 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
 
                 stateContentItemGuids.TryGetValue(stateName.GetHashCode(), out var parentGuid);
 
+                // Build the final tree path once to reuse for both TreePath and PageUrls
+                string finalTreePath = pageConfig.PageRootPath + (source.ItemDefaultUrl ?? string.Empty);
+
                 var stateContentItemPageData = new PageDataModel
                 {
                     ItemOrder = null,
-                    PageUrls = contentHelper.GetPageUrls(dependenciesModel, source, rootPath: taxItemsPath),
+                    // Use pagePath to avoid duplicating the state segment in the URL
+                    PageUrls = contentHelper.GetPageUrls(dependenciesModel, source, pagePath: finalTreePath),
                     PageGuid = source.Id,
                     ParentGuid = parentGuid,
-                    TreePath = pageConfig.PageRootPath + (source.ItemDefaultUrl ?? string.Empty)
+                    TreePath = finalTreePath
                 };
+
+                // Enforce max slug and add former URL if truncated
+                contentHelper.EnforceMaxSlugLength(stateContentItemPageData);
 
                 var stateContentItem = new ContentItemSimplifiedModel
                 {
@@ -268,14 +278,21 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
 
                     stateContentItemGuids.TryGetValue(stateName.GetHashCode(), out var parentGuid);
 
+                    // Build the final tree path for the author page
+                    string finalTreePath = authorStateFolderPath + (source.ItemDefaultUrl ?? string.Empty);
+
                     var authorStatePageData = new PageDataModel
                     {
                         ItemOrder = null,
-                        PageUrls = contentHelper.GetPageUrls(dependenciesModel, source, rootPath: authorStateFolderPath),
+                        // Use pagePath to avoid duplicating the state segment in the URL
+                        PageUrls = contentHelper.GetPageUrls(dependenciesModel, source, pagePath: finalTreePath),
                         PageGuid = source.Id,
                         ParentGuid = parentGuid,
-                        TreePath = authorStateFolderPath + (source.ItemDefaultUrl ?? string.Empty)
+                        TreePath = finalTreePath
                     };
+
+                    // Enforce max slug and add former URL if truncated
+                    contentHelper.EnforceMaxSlugLength(authorStatePageData);
 
                     var authorStateContentItem = new ContentItemSimplifiedModel
                     {
@@ -354,7 +371,57 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
 
             if (source.TypeName is "MagazineArticle" or "MagazineAuthor")
             {
-                // Find the parent MagazineIssue using the ParentId field
+                // For MagazineAuthor, always place under the configured Authors listing page (do not nest under the Issue)
+                if (string.Equals(source.TypeName, "MagazineAuthor", StringComparison.OrdinalIgnoreCase))
+                {
+                    string authorsRoot = pageConfig.PageRootPath.TrimEnd('/');
+
+                    // Try to locate the Authors listing page as parent
+                    var authorsListingPage = dependenciesModel.WebPages?.Values
+                        .FirstOrDefault(x => x.PageData?.TreePath != null &&
+                                             string.Equals(x.PageData.TreePath.TrimEnd('/'), authorsRoot, StringComparison.OrdinalIgnoreCase));
+
+                    if (authorsListingPage == null)
+                    {
+                        logger.LogWarning("Authors listing page not found for path {AuthorsPath}. Placing MagazineAuthor {AuthorId} at root.",
+                            pageConfig.PageRootPath, source.Id);
+                    }
+
+                    // Build final tree path as {AuthorsRoot}/{last-segment}
+                    string lastSegment = ExtractLastUrlSegment(source.ItemDefaultUrl);
+                    string finalTreePath = string.IsNullOrEmpty(lastSegment)
+                        ? authorsRoot
+                        : $"{authorsRoot}/{lastSegment}";
+
+                    var authorPageData = new PageDataModel
+                    {
+                        ItemOrder = null,
+                        PageUrls = contentHelper.GetPageUrls(dependenciesModel, source, pagePath: finalTreePath),
+                        PageGuid = source.Id,
+                        ParentGuid = authorsListingPage?.ContentItemGUID ?? Guid.Empty,
+                        TreePath = finalTreePath
+                    };
+
+                    contentHelper.EnforceMaxSlugLength(authorPageData);
+
+                    var authorContentItem = new ContentItemSimplifiedModel
+                    {
+                        ContentItemGUID = source.Id,
+                        ContentTypeName = finalClassName,
+                        Name = contentHelper.GetName(source.Title, source.Id),
+                        LanguageData = languageData.ToList(),
+                        IsReusable = false,
+                        PageData = authorPageData,
+                        ChannelName = channel.ChannelName
+                    };
+
+                    logger.LogInformation("MagazineAuthor {AuthorId} ({AuthorTitle}) placed under Authors listing: {TreePath}",
+                        source.Id, source.Title, finalTreePath);
+
+                    return authorContentItem;
+                }
+
+                // Existing behavior for MagazineArticle
                 var parentMagazineIssueGuid = GetParentMagazineIssueId(source);
 
                 if (parentMagazineIssueGuid != Guid.Empty &&
@@ -387,15 +454,9 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
                                 lang.ContentItemData.TryGetValue("AdditionalCategories", out object? existingValueObj);
                                 string? existingJson = existingValueObj as string;
 
-                                string resultJson;
-                                if (!string.IsNullOrWhiteSpace(existingJson) && !existingJson.Equals("[]", StringComparison.Ordinal) && IsValidJson(existingJson))
-                                {
-                                    resultJson = MergeTaxonomyArrays(existingJson, issueTagsJson);
-                                }
-                                else
-                                {
-                                    resultJson = issueTagsJson;
-                                }
+                                string resultJson = (!string.IsNullOrWhiteSpace(existingJson) && !existingJson.Equals("[]", StringComparison.Ordinal) && IsValidJson(existingJson))
+                                    ? MergeTaxonomyArrays(existingJson, issueTagsJson)
+                                    : issueTagsJson;
 
                                 lang.ContentItemData["AdditionalCategories"] = resultJson;
                             }
@@ -424,6 +485,9 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
                             x.PageData.TreePath.Equals(pageConfig.PageRootPath, StringComparison.OrdinalIgnoreCase))?.ContentItemGUID ?? Guid.Empty),
                     TreePath = pageConfig.PageRootPath + (source.ItemDefaultUrl ?? string.Empty)
                 };
+
+                // Enforce max slug and add former URL if truncated
+                contentHelper.EnforceMaxSlugLength(magazineChildPageData);
 
                 // Add Former URLs for MagazineArticle by replacing '/issue/article/' with '/issue/'
                 if (string.Equals(source.TypeName, "MagazineArticle", StringComparison.OrdinalIgnoreCase))
@@ -495,6 +559,9 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
                     TreePath = pageConfig.PageRootPath + (source.ItemDefaultUrl ?? string.Empty)
                 };
 
+                // Enforce max slug and add former URL if truncated
+                contentHelper.EnforceMaxSlugLength(listingChildPageData);
+
                 // Special handling for NewsItem to add former URLs only (no TreePath override)
                 if (source.TypeName == "NewsItem")
                 {
@@ -506,6 +573,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
                         source.Id, source.Title, formerUrls.Count, listingPage.ContentItemGUID, listingChildPageData.TreePath);
                 }
                 // Add Former URLs for MagazineIssue by replacing '/issue/article/' with '/issue/'
+
                 else if (string.Equals(source.TypeName, "MagazineIssue", StringComparison.OrdinalIgnoreCase))
                 {
                     var formerUrls = CreateMagazineFormerUrls(source, pageConfig.PageRootPath, dependenciesModel);
@@ -564,6 +632,9 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
             ParentGuid = ValidationHelper.GetGuid(source.ParentId, Guid.Empty),
             TreePath = source.ItemDefaultUrl
         };
+
+        // Enforce max slug and add former URL if truncated
+        contentHelper.EnforceMaxSlugLength(pageData);
 
         var pageContentItem = new ContentItemSimplifiedModel
         {
@@ -843,10 +914,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
         return formerUrls;
     }
 
-    private static string ReplaceIssueArticleSegment(string input)
-    {
-        return input.Replace("/issue/article/", "/issue/", StringComparison.OrdinalIgnoreCase);
-    }
+    private static string ReplaceIssueArticleSegment(string input) => input.Replace("/issue/article/", "/issue/", StringComparison.OrdinalIgnoreCase);
 
     // Helpers to merge taxonomy arrays for tags
     private static string MergeTaxonomyArrays(string array1, string array2)
@@ -919,5 +987,28 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
         {
             return false;
         }
+    }
+
+    private static string ExtractLastUrlSegment(string? itemDefaultUrl)
+    {
+        if (string.IsNullOrWhiteSpace(itemDefaultUrl))
+        {
+            return string.Empty;
+        }
+
+        string relative = itemDefaultUrl.Trim();
+        if (Uri.TryCreate(relative, UriKind.Absolute, out var abs))
+        {
+            relative = abs.PathAndQuery;
+        }
+
+        relative = relative.Trim('/');
+        if (string.IsNullOrEmpty(relative))
+        {
+            return string.Empty;
+        }
+
+        int lastSlash = relative.LastIndexOf('/');
+        return lastSlash >= 0 ? relative[(lastSlash + 1)..] : relative;
     }
 }

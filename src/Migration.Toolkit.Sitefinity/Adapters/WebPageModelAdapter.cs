@@ -56,6 +56,9 @@ internal class WebPageModelAdapter(ILogger<WebPageModelAdapter> logger,
             TreePath = contentHelper.GetRelativeUrl(source.Url)
         };
 
+        // Enforce max slug and add former URL if truncated
+        contentHelper.EnforceMaxSlugLength(pageData);
+
         var pageContentItem = new ContentItemSimplifiedModel
         {
             ContentItemGUID = source.Id,
