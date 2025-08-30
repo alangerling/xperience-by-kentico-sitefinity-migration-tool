@@ -7,23 +7,23 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="AngleSharp" Version="0.17.1" />
-    <PackageVersion Include="HtmlAgilityPack" Version="1.12.1" />
+    <PackageVersion Include="HtmlAgilityPack" Version="1.12.2" />
     <PackageVersion Include="Kentico.Xperience.Admin" Version="29.4.2" />
-    <PackageVersion Include="Kentico.Xperience.Core" Version="30.8.3" />
+    <PackageVersion Include="Kentico.Xperience.Core" Version="30.9.1" />
     <PackageVersion Include="Kentico.Xperience.ImageProcessing" Version="29.4.2" />
-    <PackageVersion Include="Kentico.Xperience.UMT" Version="3.10.0" />
+    <PackageVersion Include="Kentico.Xperience.UMT" Version="3.11.0" />
     <PackageVersion Include="Kentico.Xperience.WebApp" Version="29.4.2" />
     <PackageVersion Include="kentico.xperience.azurestorage" Version="29.4.2" />
     <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="8.0.0" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="9.0.7" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.7" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="9.0.7" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="9.0.8" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.8" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="9.0.8" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="8.0.1" />
-    <PackageVersion Include="Microsoft.Extensions.Http" Version="9.0.7" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.7" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="9.0.7" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="9.0.7" />
+    <PackageVersion Include="Microsoft.Extensions.Http" Version="9.0.8" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.8" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="9.0.8" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="9.0.8" />
     <PackageVersion Include="Progress.Sitefinity.RestSdk" Version="15.3.8523.67" />
-    <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.13.0.120203" />
+    <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.15.0.120848" />
   </ItemGroup>
 </Project>
