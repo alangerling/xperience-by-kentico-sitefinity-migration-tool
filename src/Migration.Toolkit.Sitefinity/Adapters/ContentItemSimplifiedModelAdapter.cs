@@ -79,6 +79,18 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
         users.TryGetValue(ValidationHelper.GetGuid(source.Owner, Guid.Empty), out var createdByUser);
         var languageData = contentHelper.GetLanguageData(dependenciesModel, source, targetDataClass, createdByUser);
 
+        // Force TaxManualItem to be reusable regardless of content type classification
+        if (string.Equals(source.TypeName, "TaxManualItem", StringComparison.OrdinalIgnoreCase))
+        {
+            logger.LogDebug("Overriding content type handling for TaxManualItem {ItemId} to Reusable.", source.Id);
+
+            // Place into folder structure: "Tax Manual Items/[State]"
+            string stateFolder = GetFirstPathSegment(source.ItemDefaultUrl ?? source.Url);
+            Guid parentFolderGuid = contentFolderManager.GetOrCreateContentTypeFolderPath("Tax Manual Items", stateFolder, dependenciesModel);
+
+            return AdaptReusable(source, languageData, new ContentFolderInfo { ContentFolderGUID = parentFolderGuid }, finalClassName);
+        }
+
         if (targetDataClass.ClassContentTypeType == null)
         {
             logger.LogDebug("Content type type is null for {ItemId} ({ItemTitle}). Using AdaptReusable with root folder.", source.Id, source.Title);
@@ -134,6 +146,23 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
 
         int lastSlash = relative.LastIndexOf('/');
         return lastSlash > 0 ? relative[..lastSlash] : string.Empty;
+    }
+
+    private static string GetFirstPathSegment(string? itemUrl)
+    {
+        if (string.IsNullOrWhiteSpace(itemUrl))
+        {
+            return string.Empty;
+        }
+
+        string relative = itemUrl.Trim();
+        if (Uri.TryCreate(relative, UriKind.Absolute, out var abs))
+        {
+            relative = abs.PathAndQuery;
+        }
+
+        string[] segments = relative.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return segments.Length > 0 ? segments[0] : string.Empty;
     }
 
     private ContentItemSimplifiedModel? AdaptPage(ContentItem source, IEnumerable<ContentItemLanguageData> languageData, ContentDependencies dependenciesModel, string finalClassName)

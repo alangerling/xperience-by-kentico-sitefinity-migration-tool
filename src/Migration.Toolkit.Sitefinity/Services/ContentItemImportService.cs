@@ -317,7 +317,7 @@ namespace Migration.Toolkit.Sitefinity.Services
 
             // Ensure folders for built-in Kentico reusable types that may not be part of imported data classes
             // Organization (Elfa.Organization) and EventProgram (Elfa.EventProgram)
-            string[] builtinReusableSitefinityTypes = new[] { "MagazineSponsor", "Program" };
+            string[] builtinReusableSitefinityTypes = new[] { "MagazineSponsor", "Program", "TaxManualItem" };
             foreach (string sfType in builtinReusableSitefinityTypes)
             {
                 var existingType = existingContentTypeMappingService.GetExistingContentType(sfType);
@@ -394,6 +394,30 @@ namespace Migration.Toolkit.Sitefinity.Services
                         }
                     }
                 }
+
+                // Pre-create subfolders for TaxManualItem items under "Tax Manual Items/[State]"
+                var taxManualType = typeProvider.GetAllTypes().FirstOrDefault(t => t.Name != null && t.Name.Equals("TaxManualItem", StringComparison.OrdinalIgnoreCase));
+                if (taxManualType != null)
+                {
+                    var taxTypeDefs = new[]
+                    {
+                        new SitefinityTypeDefinition
+                        {
+                            SitefinityTypeNameSpace = taxManualType.ClassNamespace!,
+                            SitefinityTypeName = taxManualType.Name!,
+                            DataClassGuid = taxManualType.Id
+                        }
+                    };
+
+                    foreach (var taxItem in contentProvider.GetContentItems(taxTypeDefs, currentSite.SystemCultures).Where(ci => string.Equals(ci.TypeName, "TaxManualItem", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        string stateFolder = GetFirstPathSegment(taxItem.ItemDefaultUrl ?? taxItem.Url);
+                        if (!string.IsNullOrWhiteSpace(stateFolder))
+                        {
+                            folderManager.GetOrCreateContentTypeFolderPath("Tax Manual Items", stateFolder, dependencies);
+                        }
+                    }
+                }
             }
 
             // Import content folders before importing content items
@@ -447,6 +471,29 @@ namespace Migration.Toolkit.Sitefinity.Services
 
             int lastSlash = relative.LastIndexOf('/');
             return lastSlash > 0 ? relative[..lastSlash] : string.Empty;
+        }
+
+        private static string GetFirstPathSegment(string? url)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                return string.Empty;
+            }
+
+            string relative = url.Trim();
+            if (Uri.TryCreate(relative, UriKind.Absolute, out var abs))
+            {
+                relative = abs.PathAndQuery;
+            }
+
+            string[] segments = relative.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length == 0)
+            {
+                return string.Empty;
+            }
+
+            // Return the first segment (e.g., state code/name)
+            return segments[0];
         }
     }
 }

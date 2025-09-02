@@ -19,8 +19,6 @@ internal class ContentProvider(IRestClient restClient, ILogger<ContentProvider> 
         /* Include with PagesOnly import
         "MagazineAuthor",
         */
-        /*
-        */
         "MagazineAuthor",
         "Program",
         "MagazineSponsor",
@@ -31,11 +29,43 @@ internal class ContentProvider(IRestClient restClient, ILogger<ContentProvider> 
         "Mlfi",
         "FundingSourceProfile",
         "NewsItem",
-        "State",
+
         "TaxManualItem",
+        "State",
         "CompendiumIssue",
         "CompendiumAuthor",
     };
+    /* run this after importing content to set templates for content items that have none set.
+     -- Update the ContentItemCommonDataPageTemplateConfiguration column based on ClassName
+UPDATE cid
+SET cid.ContentItemCommonDataVisualBuilderTemplateConfiguration = 
+    CASE c.ClassName
+        WHEN 'ContentBase.ContentPage' THEN '{"identifier":"ContentBase.SingleColumnTemplate","properties":null,"fieldIdentifiers":{}}'
+        WHEN 'ContentBase.PersonDetail' THEN '{"identifier":"ContentBase.PersonDetailTemplate","properties":null,"fieldIdentifiers":{}}'
+        WHEN 'ContentBase.EventDetail' THEN '{"identifier":"ContentBase.EventDetailTemplate","properties":null,"fieldIdentifiers":{}}'
+        WHEN 'ContentBase.ArticleDetail' THEN '{"identifier":"ContentBase.ArticleDetailTemplate","properties":null,"fieldIdentifiers":{}}'
+        WHEN 'ContentBase.Report' THEN '{"identifier":"ContentBase.ReportTemplate","properties":null,"fieldIdentifiers":{}}'
+        WHEN 'Elfa.FundingSourceProfile' THEN '{"identifier":"Elfa.FundingSourceProfileTemplate","properties":null,"fieldIdentifiers":{}}'
+        WHEN 'Elfa.CompendiumIssue' THEN '{"identifier":"Elfa.CompendiumIssueTemplate","properties":null,"fieldIdentifiers":{}}'
+        WHEN 'Elfa.MagazineIssue' THEN '{"identifier":"Elfa.MagazineIssueTemplate","properties":null,"fieldIdentifiers":{}}'
+        ELSE cid.ContentItemCommonDataVisualBuilderTemplateConfiguration -- Retain existing value if ClassName does not match
+    END
+FROM CMS_ContentItemCommonData cid
+INNER JOIN CMS_ContentItem ci ON ci.ContentItemID = cid.ContentItemCommonDataContentItemID
+INNER JOIN CMS_Class c ON ci.ContentItemContentTypeID = c.ClassID
+WHERE cid.ContentItemCommonDataVisualBuilderTemplateConfiguration IS NULL -- Only update if the column is NULL
+  AND c.ClassName IN (
+      'ContentBase.ContentPage',
+      'ContentBase.PersonDetail',
+	  'ContentBase.EventDetail',
+	  'ContentBase.ArticleDetail',
+	  'ContentBase.Report',
+	  'Elfa.FundingSourceProfile',
+	  'Elfa.CompendiumIssue',
+	  'Elfa.MagazineIssue'
+  )
+
+     */
 
     private IEnumerable<SitefinityVersionChange>? versions;
     private IEnumerable<SitefinityPageNode>? pageNodes;

@@ -192,13 +192,16 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                 KenticoClassName = "Elfa.TaxManualItem",
                 FieldMappings = new Dictionary<string, string>
                 {
-                    { "PageTitle", "Title" },
-                    { "PageCopyHtml1", "FullText" },
+                    // Map Sitefinity fields to Kentico reusable schema fields
+                    { "TaxManualHeading", "Title" },
+                    { "TaxManualCopy", "FullText" },
                     { "TaxManualItemCategories", "taxmanualcategories" },
+                    { "TaxManualImage", "Image" },
+                    // Set state taxonomy same way as CompendiumIssue
+                    { "JurisdictionState", "State" },
                     { "PublicationDate", "ReleaseDate" },
                     { "RelatedFilesDownloads", "Documents" },
-                    { "PageImage", "Image" },
-                    { "JurisdictionState", "State" }
+
                 }
             }
         },
@@ -460,18 +463,26 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                 continue;
             }
 
-            if (culture.ContentLanguageName == null)
+            // Prefer CultureFormat as the language identifier to match UMT expectations
+            string? languageIdentifier = culture.ContentLanguageCultureFormat;
+            if (string.IsNullOrWhiteSpace(languageIdentifier))
+            {
+                // Fallback to ContentLanguageName when CultureFormat is not available
+                languageIdentifier = culture.ContentLanguageName;
+            }
+
+            if (string.IsNullOrWhiteSpace(languageIdentifier))
             {
                 continue;
             }
 
             if (ValidationHelper.GetBoolean(culture.ContentLanguageIsDefault, false))
             {
-                var contentLanguageData = GetLanguageDataInternal(contentDependencies, culture.ContentLanguageName, cultureSdkItem, dataClassModel, createdByUser);
+                var contentLanguageData = GetLanguageDataInternal(contentDependencies, languageIdentifier, cultureSdkItem, dataClassModel, createdByUser);
 
                 if (contentLanguageData == null)
                 {
-                    logger.LogWarning("Failed to parse language data for default culture: {Culture}. Skipping content item {ItemDefaultUrl}.", culture.ContentLanguageName, cultureSdkItem.UrlName);
+                    logger.LogWarning("Failed to parse language data for default culture: {Culture}. Skipping content item {ItemDefaultUrl}.", languageIdentifier, cultureSdkItem.UrlName);
                     continue;
                 }
 
@@ -488,11 +499,11 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
 
                     if (alternateLanguageContentItem.Culture.Equals(culture.ContentLanguageCultureFormat))
                     {
-                        var contentLanguageData = GetLanguageDataInternal(contentDependencies, culture.ContentLanguageName, alternateLanguageContentItem, dataClassModel, createdByUser);
+                        var contentLanguageData = GetLanguageDataInternal(contentDependencies, languageIdentifier, alternateLanguageContentItem, dataClassModel, createdByUser);
 
                         if (contentLanguageData == null)
                         {
-                            logger.LogWarning("Failed to parse language data for alternate culture: {Culture}. Skipping content item {ItemDefaultUrl}.", culture.ContentLanguageName, alternateLanguageContentItem.UrlName);
+                            logger.LogWarning("Failed to parse language data for alternate culture: {Culture}. Skipping content item {ItemDefaultUrl}.", languageIdentifier, alternateLanguageContentItem.UrlName);
                             continue;
                         }
 
@@ -813,7 +824,7 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                                         combinedCategories = articlecolumnsText;
                                     }
 
-                                    logger.LogInformation("Merged articlecolumns into categories/tags for {ItemUrl}.", cultureSdkItem.UrlName);
+                                    logger.LogInformation("Merged articlecolumns into categories/tags for {ItemUrl}.", typeNameWithoutNamespace, cultureSdkItem.UrlName);
                                 }
                                 else
                                 {
@@ -842,7 +853,7 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                                         combinedCategories = articledepartmentsText;
                                     }
 
-                                    logger.LogInformation("Merged articledepartments into categories/tags for {ItemUrl}.", cultureSdkItem.UrlName);
+                                    logger.LogInformation("Merged articledepartments into categories/tags for {ItemUrl}.", typeNameWithoutNamespace, cultureSdkItem.UrlName);
                                 }
                                 else
                                 {
@@ -871,7 +882,7 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                                         combinedCategories = articletypesText;
                                     }
 
-                                    logger.LogInformation("Merged articletypes into categories/tags for {ItemUrl}.", cultureSdkItem.UrlName);
+                                    logger.LogInformation("Merged articletypes into categories/tags for {ItemUrl}.", typeNameWithoutNamespace, cultureSdkItem.UrlName);
                                 }
                                 else
                                 {
@@ -1270,12 +1281,19 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                 continue;
             }
 
+            // Prefer CultureFormat as the language identifier for PageUrl models
+            string languageIdentifier = culture.ContentLanguageCultureFormat ?? culture.ContentLanguageName ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(languageIdentifier))
+            {
+                continue;
+            }
+
             if (ValidationHelper.GetBoolean(culture.ContentLanguageIsDefault, false))
             {
                 pageUrls.Add(new PageUrlModel
                 {
                     UrlPath = pageUrl.TrimStart('/'),
-                    LanguageName = culture.ContentLanguageName,
+                    LanguageName = languageIdentifier,
                     PathIsDraft = false,
                     PathIsLatest = true
                 });
@@ -1288,8 +1306,8 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                 {
                     pageUrls.Add(new PageUrlModel
                     {
-                        UrlPath = culture.ContentLanguageName + pageUrl,
-                        LanguageName = culture.ContentLanguageName,
+                        UrlPath = languageIdentifier + pageUrl,
+                        LanguageName = languageIdentifier,
                         PathIsDraft = false,
                         PathIsLatest = true
                     });
@@ -1300,7 +1318,7 @@ internal class ContentHelper(ILogger<ContentHelper> logger,
                 pageUrls.Add(new PageUrlModel
                 {
                     UrlPath = GetUrl(alternateLanguageContentItem, rootPath, pagePath).TrimStart('/'),
-                    LanguageName = culture.ContentLanguageName,
+                    LanguageName = languageIdentifier,
                     PathIsDraft = false,
                     PathIsLatest = true
                 });
