@@ -88,13 +88,13 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
             string stateFolder = GetFirstPathSegment(source.ItemDefaultUrl ?? source.Url);
             Guid parentFolderGuid = contentFolderManager.GetOrCreateContentTypeFolderPath("Tax Manual Items", stateFolder, dependenciesModel);
 
-            return AdaptReusable(source, languageData, new ContentFolderInfo { ContentFolderGUID = parentFolderGuid }, finalClassName);
+            return AdaptReusable(source, languageData, new ContentFolderInfo { ContentFolderGUID = parentFolderGuid }, finalClassName, dependenciesModel);
         }
 
         if (targetDataClass.ClassContentTypeType == null)
         {
             logger.LogDebug("Content type type is null for {ItemId} ({ItemTitle}). Using AdaptReusable with root folder.", source.Id, source.Title);
-            return AdaptReusable(source, languageData, rootFolder, finalClassName);
+            return AdaptReusable(source, languageData, rootFolder, finalClassName, dependenciesModel);
         }
 
         if (targetDataClass.ClassContentTypeType.Equals("Reusable"))
@@ -108,10 +108,10 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
                 string subfolderPath = GetProgramSubfolderPath(urlForFolder);
                 var folderGuid = contentFolderManager.GetOrCreateContentTypeFolderPath("EventProgram", subfolderPath, dependenciesModel);
 
-                return AdaptReusable(source, languageData, new ContentFolderInfo { ContentFolderGUID = folderGuid }, finalClassName);
+                return AdaptReusable(source, languageData, new ContentFolderInfo { ContentFolderGUID = folderGuid }, finalClassName, dependenciesModel);
             }
 
-            return AdaptReusable(source, languageData, new ContentFolderInfo { ContentFolderGUID = targetDataClass.ClassGUID ?? rootFolder.ContentFolderGUID }, finalClassName);
+            return AdaptReusable(source, languageData, new ContentFolderInfo { ContentFolderGUID = targetDataClass.ClassGUID ?? rootFolder.ContentFolderGUID }, finalClassName, dependenciesModel);
         }
 
         if (targetDataClass.ClassContentTypeType.Equals("Website"))
@@ -121,7 +121,7 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
         }
 
         logger.LogDebug("Content type type '{ContentTypeType}' not recognized for {ItemId} ({ItemTitle}). Using AdaptReusable with root folder.", targetDataClass.ClassContentTypeType, source.Id, source.Title);
-        return AdaptReusable(source, languageData, rootFolder, finalClassName);
+        return AdaptReusable(source, languageData, rootFolder, finalClassName, dependenciesModel);
     }
 
     private static string GetProgramSubfolderPath(string? itemUrl)
@@ -679,15 +679,22 @@ internal class ContentItemSimplifiedModelAdapter(ILogger<ContentItemSimplifiedMo
         return pageContentItem;
     }
 
-    private ContentItemSimplifiedModel AdaptReusable(ContentItem source, IEnumerable<ContentItemLanguageData> languageData, ContentFolderInfo folder, string finalClassName) => new()
+    private ContentItemSimplifiedModel AdaptReusable(ContentItem source, IEnumerable<ContentItemLanguageData> languageData, ContentFolderInfo folder, string finalClassName, ContentDependencies dependenciesModel)
     {
-        ContentItemGUID = source.Id,
-        ContentTypeName = finalClassName, // Use finalClassName instead of mappedClassName
-        Name = contentHelper.GetName(source.Title, source.Id),
-        LanguageData = languageData.ToList(),
-        IsReusable = true,
-        ContentItemContentFolderGUID = folder.ContentFolderGUID,
-    };
+        // Get the channel for reusable content items
+        var channel = contentHelper.GetCurrentChannel(dependenciesModel.Channels.Values);
+
+        return new ContentItemSimplifiedModel
+        {
+            ContentItemGUID = source.Id,
+            ContentTypeName = finalClassName,
+            Name = contentHelper.GetName(source.Title, source.Id),
+            LanguageData = languageData.ToList(),
+            IsReusable = true,
+            ContentItemContentFolderGUID = folder.ContentFolderGUID,
+            ChannelName = channel?.ChannelName
+        };
+    }
 
     /// <summary>
     /// Gets the parent MagazineIssue ID from a child content item (MagazineArticle or MagazineAuthor).
